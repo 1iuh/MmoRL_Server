@@ -79,16 +79,21 @@ class ObjectStore(object):
     def __setitem__(self, key, val):
         self.store[key] = val
 
+    def __delitem__(self, key):
+        del self.store[key]
+
     def json(self):
         res = dict()
 
-        for k,v in self.store:
+        for k,v in self.store.items():
             res[k] = {
                 "hp": v.hp,
-                "max_hp": v.max_hp
+                "maxHp": v.max_hp
             }
             
-        return 
+        return res
+
+
 
 
 objStore = ObjectStore()
@@ -106,6 +111,7 @@ class Vector2(object):
 
 class MoveObject(metaclass=ABCMeta):
     hp:int
+    max_hp:int
     min_attack:int
     max_attack:int
     type_code:int
@@ -120,6 +126,7 @@ class MoveObject(metaclass=ABCMeta):
         self.position = position
         obj[position.x][position.y] = self.type_code
         objStore[str(position.x) + str(position.y)] = self
+        self.hp = self.max_hp
 
     def kick(self, damage):
         logger.info('kick ' + self.__class__.__name__)
@@ -135,7 +142,7 @@ class MoveObject(metaclass=ABCMeta):
         logger.info(self.__class__.__name__ + ' destroy!')
         messages.append(f'「{self.name}」被摧毁了。')
         obj[self.position.x][self.position.y] = 0
-        objStore[str(self.position.x) + str(self.position.y)] = None
+        del objStore[str(self.position.x) + str(self.position.y)]
 
 
     def __str__(self):
@@ -143,7 +150,7 @@ class MoveObject(metaclass=ABCMeta):
 
 
 class Door(MoveObject):
-    hp = 1
+    max_hp = 1
     min_attack = 0
     max_attack = 0
     type_code = 4
@@ -151,7 +158,7 @@ class Door(MoveObject):
 
 
 class Enemy(MoveObject):
-    hp = 20
+    max_hp = 20
     min_attack = 4
     max_attack = 7
     type_code = 5
@@ -159,7 +166,7 @@ class Enemy(MoveObject):
 
 
 class Player(MoveObject):
-    hp = 30
+    max_hp = 30
     min_attack = 3
     max_attack = 5
     type_code = 2
@@ -243,7 +250,8 @@ class InitMessage(object):
             mapLength=len(self.layers['floor'][0]),
             messages=msg,
             hp=self.player.hp,
-            objStore = objStore
+            maxHp=self.player.max_hp,
+            objStore = objStore.json()
         ))
 
 init = InitMessage()
