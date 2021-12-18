@@ -65,8 +65,33 @@ obj = [
     [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0]
 ]
 
-objStore = {}
 messages = []
+
+class ObjectStore(object):
+    store: dict
+
+    def __init__(self):
+        self.store = dict()
+
+    def __getitem__(self, key):
+        return self.store[key]
+
+    def __setitem__(self, key, val):
+        self.store[key] = val
+
+    def json(self):
+        res = dict()
+
+        for k,v in self.store:
+            res[k] = {
+                "hp": v.hp,
+                "max_hp": v.max_hp
+            }
+            
+        return 
+
+
+objStore = ObjectStore()
 
 class Vector2(object):
     x: int
@@ -217,7 +242,8 @@ class InitMessage(object):
             mapWidth=len(self.layers['floor']),
             mapLength=len(self.layers['floor'][0]),
             messages=msg,
-            hp=self.player.hp
+            hp=self.player.hp,
+            objStore = objStore
         ))
 
 init = InitMessage()
@@ -239,7 +265,7 @@ async def handler(websocket):
 
 
 async def main():
-    async with websockets.serve(handler, "", 8001):
+    async with websockets.serve(handler, "", 8001): # type:ignore
         await asyncio.Future()  # run forever
 
 
