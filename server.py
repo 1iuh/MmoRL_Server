@@ -5,7 +5,9 @@ import asyncio
 import websockets
 import json
 import logging
-from random import randint
+from random import randint, choice
+from common import Vector2
+from dungeon_generator import DungeonGenerator
 
 logging.basicConfig(
     format="%(asctime)s %(message)s",
@@ -15,55 +17,11 @@ logger = logging.getLogger("websockets.client")
 
 from abc import ABCMeta
 
-floor = [
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [1, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 1],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 1, 1, 1, 1, 1 ,1, 1, 1, 1, 1, 1, 1, 1 ,1, 1, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0]
-]
+dungeon =  DungeonGenerator()
+dungeon.generate()
 
-obj = [
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0],
-    [0, 3, 3, 3, 3, 3 ,0, 0, 0, 0, 0, 0, 3, 3 ,3, 3, 0],
-    [0, 3, 0, 0, 0, 3 ,0, 0, 0, 0, 0, 0, 3, 0 ,0, 3, 0],
-    [0, 3, 0, 0, 0, 3 ,0, 0, 0, 0, 0, 0, 3, 0 ,0, 3, 0],
-    [0, 3, 0, 0, 0, 3 ,0, 0, 0, 0, 0, 0, 3, 0 ,0, 3, 0],
-    [0, 3, 0, 0, 0, 3 ,3, 3, 3, 3, 3, 3, 3, 0 ,0, 3, 0],
-    [0, 3, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 3, 0],
-    [0, 3, 0, 0, 0, 3 ,3, 3, 3, 3, 3, 3, 3, 0 ,0, 3, 0],
-    [0, 3, 0, 0, 0, 3 ,0, 0, 0, 0, 0, 0, 3, 0 ,0, 3, 0],
-    [0, 3, 0, 0, 0, 3 ,0, 0, 0, 0, 0, 0, 3, 0 ,0, 3, 0],
-    [0, 3, 0, 0, 0, 3 ,0, 0, 0, 0, 0, 0, 3, 0 ,0, 3, 0],
-    [0, 3, 3, 3, 3, 3 ,0, 0, 0, 0, 0, 0, 3, 0 ,0, 3, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 3, 0 ,0, 3, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 3, 3 ,3, 3, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0],
-    [0, 0, 0, 0, 0, 0 ,0, 0, 0, 0, 0, 0, 0, 0 ,0, 0, 0]
-]
+floor = dungeon.floor_level_matrix
+obj = dungeon.interactable_level_matrix
 
 messages = []
 
@@ -98,17 +56,6 @@ class ObjectStore(object):
 
 objStore = ObjectStore()
 
-class Vector2(object):
-    x: int
-    y: int
-
-    def __init__ (self, x, y):
-        self.x = x
-        self.y = y
-
-    def copy(self):
-        return Vector2(self.x, self.y)
-
 class MoveObject(metaclass=ABCMeta):
     hp:int
     max_hp:int
@@ -124,7 +71,7 @@ class MoveObject(metaclass=ABCMeta):
 
     def __init__(self, position:Vector2):
         self.position = position
-        obj[position.x][position.y] = self.type_code
+        obj[position] = self.type_code
         objStore[str(position.x) + str(position.y)] = self
         self.hp = self.max_hp
 
@@ -141,7 +88,7 @@ class MoveObject(metaclass=ABCMeta):
     def destroy(self):
         logger.info(self.__class__.__name__ + ' destroy!')
         messages.append(f'「{self.name}」被摧毁了。')
-        obj[self.position.x][self.position.y] = 0
+        obj[self.position] = 0
         del objStore[str(self.position.x) + str(self.position.y)]
 
 
@@ -158,7 +105,7 @@ class Door(MoveObject):
 
 
 class Enemy(MoveObject):
-    max_hp = 20
+    max_hp = 10
     min_attack = 4
     max_attack = 7
     type_code = 5
@@ -168,7 +115,7 @@ class Enemy(MoveObject):
 class Player(MoveObject):
     max_hp = 30
     min_attack = 3
-    max_attack = 5
+    max_attack = 8
     type_code = 2
 
 
@@ -183,9 +130,12 @@ class InitMessage(object):
     player: Player
 
     def __init__(self):
-        Door(Vector2(6,5))
-        Enemy(Vector2(6,10))
-        self.player = Player(Vector2(6,3))
+        for x in range(0, randint(20, 40)):
+            pt = choice(choice(dungeon.rooms).floors)
+            Enemy(pt)
+
+        pt = choice(choice(dungeon.rooms).floors)
+        self.player = Player(pt)
         self.playerPosition = self.player.position
 
         
@@ -194,9 +144,9 @@ class InitMessage(object):
         return self.layers['obj']
 
     def AttemptMove(self, position):
-        if self.obj[position.x][position.y] == 3:
+        if self.obj[position] == 3:
             return False
-        if self.obj[position.x][position.y] > 3:
+        if self.obj[position] > 3:
             mb = objStore[str(position.x) + str(position.y)]
             damage = mb.kick(self.player.attack)
             self.player.hp = self.player.hp - damage
@@ -210,8 +160,8 @@ class InitMessage(object):
         position = self.playerPosition.copy()
         position.x = position.x + 1
         if self.AttemptMove(position) :
-            self.obj[self.playerPosition.x][self.playerPosition.y] = 0
-            self.obj[position.x][position.y] = 2
+            self.obj[self.playerPosition] = 0
+            self.obj[position] = 2
             self.playerPosition = position
 
 
@@ -219,24 +169,24 @@ class InitMessage(object):
         position = self.playerPosition.copy()
         position.x = position.x - 1
         if self.AttemptMove(position) :
-            self.obj[self.playerPosition.x][self.playerPosition.y] = 0
-            self.obj[position.x][position.y] = 2
+            self.obj[self.playerPosition] = 0
+            self.obj[position] = 2
             self.playerPosition = position
 
     def moveLeft(self):
         position = self.playerPosition.copy()
         position.y = position.y -1
         if self.AttemptMove(position) :
-            self.obj[self.playerPosition.x][self.playerPosition.y] = 0
-            self.obj[position.x][position.y] = 2
+            self.obj[self.playerPosition] = 0
+            self.obj[position] = 2
             self.playerPosition = position
 
     def moveRight(self):
         position = self.playerPosition.copy()
         position.y = position.y + 1
         if self.AttemptMove(position) :
-            self.obj[self.playerPosition.x][self.playerPosition.y] = 0
-            self.obj[position.x][position.y] = 2
+            self.obj[self.playerPosition] = 0
+            self.obj[position] = 2
             self.playerPosition = position
 
     def __str__(self):
@@ -245,9 +195,12 @@ class InitMessage(object):
 
         return json.dumps(dict(
             tp=self.tp,
-            layers=self.layers,
-            mapWidth=len(self.layers['floor']),
-            mapLength=len(self.layers['floor'][0]),
+            layers=dict(
+                floor=floor.toHex(),
+                obj=obj.toHex()
+            ),
+            mapWidth=dungeon.map_width,
+            mapLength=dungeon.map_height,
             messages=msg,
             hp=self.player.hp,
             maxHp=self.player.max_hp,
