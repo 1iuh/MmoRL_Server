@@ -5,9 +5,10 @@ from random import randint
 
 class DungeonGenerator(object):
     max_room_size = 12
-    min_room_size = 5
-    map_width = 200
-    map_height = 200
+    min_room_size = 7
+    map_width = 30
+    map_height = 30
+    room_number = 4
     floor_level_matrix: MyMatrix
     loot_level_matrix: MyMatrix
     interactable_level_matrix: MyMatrix
@@ -21,10 +22,8 @@ class DungeonGenerator(object):
     def generate(self):
         self.floor_level_matrix = MyMatrix(self.map_width, self.map_height)
         self.interactable_level_matrix = MyMatrix(self.map_width, self.map_height)
-        self.digOneRoom()
-        self.digOneRoom()
-        self.digOneRoom()
-        self.digOneRoom()
+        for _ in range(0, self.room_number):
+            self.digOneRoom()
         self.link_rooms()
         
     def digOneRoom(self)->None:
@@ -164,9 +163,13 @@ class DungeonGenerator(object):
                     start = d1
                     end = d2
 
-        #把路画上
+        # 把路画上
         road = Road(start, end, road_arr)
         self.write_matrix(self.floor_level_matrix, road.passageway, FLOOR.NORMAL)
+        # 如果对路上有墙， 就把墙换成门
+        for pt in road.passageway:
+            if self.interactable_level_matrix[pt] == WALL.NORMAL:
+                self.interactable_level_matrix[pt] = INTERACTABLE.DOOR;
         # 把路边的墙画上
         road_wall = get_road_wall_points(road_arr) 
         self.roads.append(road)

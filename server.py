@@ -69,7 +69,7 @@ class MoveObject(metaclass=ABCMeta):
     def attack(self):
         return randint(self.min_attack, self.max_attack)
 
-    def __init__(self, position:Vector2):
+    def __init__(self, position):
         self.position = position
         obj[position] = self.type_code
         objStore[str(position.x) + str(position.y)] = self
@@ -130,7 +130,7 @@ class InitMessage(object):
     player: Player
 
     def __init__(self):
-        for x in range(0, randint(20, 40)):
+        for x in range(0, randint(30, 100)):
             pt = choice(choice(dungeon.rooms).floors)
             Enemy(pt)
 
@@ -146,6 +146,9 @@ class InitMessage(object):
     def AttemptMove(self, position):
         if self.obj[position] == 3:
             return False
+        if self.obj[position] == 4:
+            Door(position)
+
         if self.obj[position] > 3:
             mb = objStore[str(position.x) + str(position.y)]
             damage = mb.kick(self.player.attack)
@@ -158,7 +161,7 @@ class InitMessage(object):
 
     def moveUp(self):
         position = self.playerPosition.copy()
-        position.x = position.x + 1
+        position.y = position.y + 1
         if self.AttemptMove(position) :
             self.obj[self.playerPosition] = 0
             self.obj[position] = 2
@@ -167,7 +170,7 @@ class InitMessage(object):
 
     def moveDown(self):
         position = self.playerPosition.copy()
-        position.x = position.x - 1
+        position.y = position.y -1
         if self.AttemptMove(position) :
             self.obj[self.playerPosition] = 0
             self.obj[position] = 2
@@ -175,7 +178,7 @@ class InitMessage(object):
 
     def moveLeft(self):
         position = self.playerPosition.copy()
-        position.y = position.y -1
+        position.x = position.x - 1
         if self.AttemptMove(position) :
             self.obj[self.playerPosition] = 0
             self.obj[position] = 2
@@ -183,7 +186,7 @@ class InitMessage(object):
 
     def moveRight(self):
         position = self.playerPosition.copy()
-        position.y = position.y + 1
+        position.x = position.x + 1
         if self.AttemptMove(position) :
             self.obj[self.playerPosition] = 0
             self.obj[position] = 2
@@ -207,23 +210,80 @@ class InitMessage(object):
             objStore = objStore.json()
         ))
 
+    def update(self):
+        msg = messages.copy()
+        messages.clear()
+
+        return json.dumps(dict(
+            tp=self.tp,
+            layers=dict(
+                floor="",
+                obj=obj.toHex()
+            ),
+            mapWidth=dungeon.map_width,
+            mapLength=dungeon.map_height,
+            messages=msg,
+            hp=self.player.hp,
+            maxHp=self.player.max_hp,
+            objStore = objStore.json()
+        ))
+
 init = InitMessage()
+
+async def first_message_handler(websocket):
+    user = None
+
+
+
+
+connected = set()
+
+response = []
+
+async def consumer(message, user):
+    if message == "init":
+        return str(init)
+    elif message == "up":
+        init.moveUp();
+    elif message == "down":
+        init.moveDown();
+    elif message == "left":
+        init.moveLeft();
+    elif message == "right":
+        init.moveRight();
+
+async def producer():
+    message = "Hello, World!"
+    await asyncio.sleep(5)
+    return message
+
+
+async def consumer_handler(websocket, user):
+    async for message in websocket:
+        await consumer(message, user)
+
+async def producer_handler(websocket, user):
+    while True:
+        message = await producer()
+        await websocket.send(message)
 
 
 async def handler(websocket):
-    while True:
-        message = await websocket.recv()
-        if message == "init":
-            await websocket.send(str(init))
-        elif message == "up":
-            init.moveUp();
-        elif message == "down":
-            init.moveDown();
-        elif message == "left":
-            init.moveLeft();
-        elif message == "right":
-            init.moveRight();
-
+    logger.info('=connected=')
+    token = await websocket.recv()
+    user = None
+    if token == "1":
+        user = 1
+    if token == "2":
+        user = 2
+    if user is None:
+        await websocket.close(1011, "authentication failed")
+        return
+    connected.add(websocket)
+    await asyncio.gather(
+        consumer_handler(websocket, user),
+        producer_handler(websocket, user),
+    )
 
 async def main():
     async with websockets.serve(handler, "", 8001): # type:ignore
