@@ -2,7 +2,7 @@ class Vector2(object):
     x: int
     y: int
 
-    def __init__ (self, x, y):
+    def __init__ (self, x:int, y:int):
         self.x = x
         self.y = y
 
@@ -18,7 +18,12 @@ class MyMatrix(object):
     def __init__(self, width, height):
         self.width = width
         self.height = height
-        self.rawData = bytearray(width*height)
+
+    def fillMatrixWithZero(self):
+        self.rawData = bytearray(self.width*self.height)
+
+    def setMatrix(self, byte_array):
+        self.rawData = byte_array
 
     def __getitem__(self, vect):
         index  = vect.x + vect.y * self.width
@@ -39,13 +44,12 @@ class MyMatrix(object):
     def toHex(self):
         return self.rawData.hex()
 
-class Point(object):
-    x: int
-    y: int
-    
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
+
+    def toBytes(self):
+        return bytes(self.rawData)
+
+
+class Point(Vector2):
 
     def copy(self):
         return Point(self.x, self.y)
@@ -62,6 +66,13 @@ class Room(object):
         self.width = width
         self.height = height
 
+    def __str__(self):
+        return "|".join([str(self.anchor.x), str(self.anchor.y), str(self.width), str(self.height)])
+
+    @classmethod
+    def fromStr(cls, room_str:str):
+        x, y, width, height = room_str.split('|')
+        return cls(Point(int(x), int(y)), int(width), int(height))
 
     @property
     def floors(self) -> list[Point]:

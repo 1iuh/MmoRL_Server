@@ -1,30 +1,43 @@
 #!/usr/bin/env python
 from common import Vector2, MyMatrix, Room, Point, Road
-from consts import FLOOR, WALL, INTERACTABLE
+from consts import FLOOR, WALL, INTERACTABLE, REDISKEYS
 from random import randint
+import redis
+from uuid import uuid4
+
+redis_conn = redis.Redis(host='localhost', port=6379, db=0)
 
 class DungeonGenerator(object):
     max_room_size = 12
     min_room_size = 7
-    map_width = 30
-    map_height = 30
-    room_number = 4
+    map_width = 300
+    map_height = 300
+    room_number = 50
     floor_level_matrix: MyMatrix
     loot_level_matrix: MyMatrix
     interactable_level_matrix: MyMatrix
+    dungeon_id:str
     rooms: list[Room]
     roads: list[Road]
 
     def __init__(self):
         self.rooms = []
         self.roads = []
+        self.dungeon_id = str(uuid4())
+
 
     def generate(self):
         self.floor_level_matrix = MyMatrix(self.map_width, self.map_height)
+        self.floor_level_matrix.fillMatrixWithZero()
+        self.loot_level_matrix = MyMatrix(self.map_width, self.map_height)
+        self.loot_level_matrix.fillMatrixWithZero()
         self.interactable_level_matrix = MyMatrix(self.map_width, self.map_height)
+        self.interactable_level_matrix.fillMatrixWithZero()
+
         for _ in range(0, self.room_number):
             self.digOneRoom()
         self.link_rooms()
+
         
     def digOneRoom(self)->None:
         if self.floor_level_matrix is None:
@@ -192,7 +205,20 @@ class DungeonGenerator(object):
 
         sorted(self.rooms, key=cmp_to_key(room_compare))
 
+    def save(self):
+        floor_redis_key = REDISKEYS.FLOORLEVEL + self.dungeon_id
+        loot_redis_key = REDISKEYS.LOOTLEVEL + self.dungeon_id
+        interactable_redis_key= REDISKEYS.INTERACTABLELEVEL + self.dungeon_id
+        room_redis_key= REDISKEYS.ROOMS + self.dungeon_id
+        redis_conn.set(floor_redis_key, self.floor_level_matrix.toBytes())
+        redis_conn.set(loot_redis_key, self.floor_level_matrix.toBytes())
+        redis_conn.set(interactable_redis_key, self.floor_level_matrix.toBytes())
+        for room in self.rooms:
+            redis_conn.lpush(room_redis_key, str(room))
+
+
 
 if __name__ == '__main__':
     gen = DungeonGenerator()
     gen.generate()
+    gen.save()

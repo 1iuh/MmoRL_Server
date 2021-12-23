@@ -1,20 +1,40 @@
 #!/usr/bin/env python
 
 from random import randint, choice
-from common import Vector2
-import json
+from common import Vector2, MyMatrix, Room
 from abc import ABCMeta
-from dungeon_generator import DungeonGenerator
+from consts import REDISKEYS
+import logging
+import redis
 
-dungeon =  DungeonGenerator()
-dungeon.generate()
+dungeon_id = '978b95e2-1de3-43f1-880f-44254a7a6ee5'
+dungeon_width = 300
+dungeon_height = 300
 
-floor = dungeon.floor_level_matrix
-obj = dungeon.interactable_level_matrix
+redis_conn = redis.Redis(host='localhost', port=6379, db=0)
+
+logging.basicConfig(
+    format="%(asctime)s %(message)s",
+    level=logging.INFO,
+)
+
+logger = logging.getLogger("GameManager")
+
+
+
+floor = MyMatrix(dungeon_width, dungeon_height)
+floor.setMatrix(redis_conn.get(REDISKEYS.FLOORLEVEL + dungeon_id))
+loot = MyMatrix(dungeon_width, dungeon_height)
+loot.setMatrix(redis_conn.get(REDISKEYS.LOOTLEVEL + dungeon_id))
+interactable = MyMatrix(dungeon_width, dungeon_height)
+interactable.setMatrix(redis_conn.get(REDISKEYS.INTERACTABLELEVEL + dungeon_id))
+room_redis_key = REDISKEYS.ROOMS
+
+rooms = []
+for room_str in redis_conn.lrange(room_redis_key, 0, -1):
+    rooms.append(Room.fromStr(room_str.decode('utf-8')))
 
 messages = []
-
-
 
 class ObjectStore(object):
     store: dict
@@ -42,10 +62,8 @@ class ObjectStore(object):
             
         return res
 
-
-
-
 objStore = ObjectStore()
+
 
 class MoveObject(metaclass=ABCMeta):
     hp:int
@@ -62,7 +80,7 @@ class MoveObject(metaclass=ABCMeta):
 
     def __init__(self, position):
         self.position = position
-        obj[position] = self.type_code
+        interactable[position] = self.type_code
         objStore[str(position.x) + str(position.y)] = self
         self.hp = self.max_hp
 
@@ -79,7 +97,7 @@ class MoveObject(metaclass=ABCMeta):
     def destroy(self):
         logger.info(self.__class__.__name__ + ' destroy!')
         messages.append(f'「{self.name}」被摧毁了。')
-        obj[self.position] = 0
+        interactable[self.position] = 0
         del objStore[str(self.position.x) + str(self.position.y)]
 
 
@@ -110,37 +128,27 @@ class Player(MoveObject):
     type_code = 2
 
 
-class InitMessage(object):
+class GameManager(object):
 
-    layers = dict(
-        floor = floor,
-        obj = obj
-    )
-    tp = "init"
     playerPosition: Vector2
     player: Player
 
     def __init__(self):
-        for x in range(0, randint(30, 100)):
-            pt = choice(choice(dungeon.rooms).floors)
+        for _ in range(0, randint(30, 100)):
+            pt = choice(choice(rooms).floors)
             Enemy(pt)
 
-        pt = choice(choice(dungeon.rooms).floors)
+        pt = choice(choice(rooms).floors)
         self.player = Player(pt)
         self.playerPosition = self.player.position
 
         
-    @property
-    def obj(self):
-        return self.layers['obj']
-
     def AttemptMove(self, position):
-        if self.obj[position] == 3:
+        if interactable[position] == 3:
             return False
-        if self.obj[position] == 4:
+        if interactable[position] == 4:
             Door(position)
-
-        if self.obj[position] > 3:
+        if interactable[position] > 3:
             mb = objStore[str(position.x) + str(position.y)]
             damage = mb.kick(self.player.attack)
             self.player.hp = self.player.hp - damage
@@ -154,8 +162,8 @@ class InitMessage(object):
         position = self.playerPosition.copy()
         position.y = position.y + 1
         if self.AttemptMove(position) :
-            self.obj[self.playerPosition] = 0
-            self.obj[position] = 2
+            interactable[self.playerPosition] = 0
+            interactable[position] = 2
             self.playerPosition = position
 
 
@@ -163,60 +171,61 @@ class InitMessage(object):
         position = self.playerPosition.copy()
         position.y = position.y -1
         if self.AttemptMove(position) :
-            self.obj[self.playerPosition] = 0
-            self.obj[position] = 2
+            interactable[self.playerPosition] = 0
+            interactable[position] = 2
             self.playerPosition = position
 
     def moveLeft(self):
         position = self.playerPosition.copy()
         position.x = position.x - 1
         if self.AttemptMove(position) :
-            self.obj[self.playerPosition] = 0
-            self.obj[position] = 2
+            interactable[self.playerPosition] = 0
+            interactable[position] = 2
             self.playerPosition = position
 
     def moveRight(self):
         position = self.playerPosition.copy()
         position.x = position.x + 1
         if self.AttemptMove(position) :
-            self.obj[self.playerPosition] = 0
-            self.obj[position] = 2
+            interactable[self.playerPosition] = 0
+            interactable[position] = 2
             self.playerPosition = position
 
     def __str__(self):
-        msg = messages.copy()
-        messages.clear()
+        pass
+        # msg = messages.copy()
+        # messages.clear()
 
-        return json.dumps(dict(
-            tp=self.tp,
-            layers=dict(
-                floor=floor.toHex(),
-                obj=obj.toHex()
-            ),
-            mapWidth=dungeon.map_width,
-            mapLength=dungeon.map_height,
-            messages=msg,
-            hp=self.player.hp,
-            maxHp=self.player.max_hp,
-            objStore = objStore.json()
-        ))
+        # return json.dumps(dict(
+        #     tp=self.tp,
+        #     layers=dict(
+        #         floor=floor.toHex(),
+        #         obj=obj.toHex()
+        #     ),
+        #     mapWidth=dungeon.map_width,
+        #     mapLength=dungeon.map_height,
+        #     messages=msg,
+        #     hp=self.player.hp,
+        #     maxHp=self.player.max_hp,
+        #     objStore = objStore.json()
+        # ))
+
 
     def update(self):
-        msg = messages.copy()
-        messages.clear()
+        pass
+        # msg = messages.copy()
+        # messages.clear()
 
-        return json.dumps(dict(
-            tp=self.tp,
-            layers=dict(
-                floor="",
-                obj=obj.toHex()
-            ),
-            mapWidth=dungeon.map_width,
-            mapLength=dungeon.map_height,
-            messages=msg,
-            hp=self.player.hp,
-            maxHp=self.player.max_hp,
-            objStore = objStore.json()
-        ))
-
-init = InitMessage()
+        # return json.dumps(dict(
+        #     tp=self.tp,
+        #     layers=dict(
+        #         floor="",
+        #         obj=obj.toHex()
+        #     ),
+        #     mapWidth=dungeon.map_width,
+        #     mapLength=dungeon.map_height,
+        #     messages=msg,
+        #     hp=self.player.hp,
+        #     maxHp=self.player.max_hp,
+        #     objStore = objStore.json()
+        # ))
