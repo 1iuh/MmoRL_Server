@@ -10,9 +10,9 @@ redis_conn = redis.Redis(host='localhost', port=6379, db=0)
 class DungeonGenerator(object):
     max_room_size = 12
     min_room_size = 7
-    map_width = 300
-    map_height = 300
-    room_number = 50
+    map_width =  99
+    map_height = 99
+    room_number = 10
     floor_level_matrix: MyMatrix
     loot_level_matrix: MyMatrix
     interactable_level_matrix: MyMatrix
@@ -24,6 +24,7 @@ class DungeonGenerator(object):
         self.rooms = []
         self.roads = []
         self.dungeon_id = str(uuid4())
+        print(self.dungeon_id )
 
 
     def generate(self):
@@ -211,8 +212,8 @@ class DungeonGenerator(object):
         interactable_redis_key= REDISKEYS.INTERACTABLELEVEL + self.dungeon_id
         room_redis_key= REDISKEYS.ROOMS + self.dungeon_id
         redis_conn.set(floor_redis_key, self.floor_level_matrix.toBytes())
-        redis_conn.set(loot_redis_key, self.floor_level_matrix.toBytes())
-        redis_conn.set(interactable_redis_key, self.floor_level_matrix.toBytes())
+        redis_conn.set(loot_redis_key, self.loot_level_matrix.toBytes())
+        redis_conn.set(interactable_redis_key, self.interactable_level_matrix.toBytes())
         for room in self.rooms:
             redis_conn.lpush(room_redis_key, str(room))
 

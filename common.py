@@ -23,7 +23,7 @@ class MyMatrix(object):
         self.rawData = bytearray(self.width*self.height)
 
     def setMatrix(self, byte_array):
-        self.rawData = byte_array
+        self.rawData = bytearray(byte_array)
 
     def __getitem__(self, vect):
         index  = vect.x + vect.y * self.width
@@ -32,6 +32,9 @@ class MyMatrix(object):
     def __setitem__(self, vect, v):
         index  = vect.x + vect.y * self.width
         self.rawData[index] = v 
+
+    def __len__(self):
+        return len(self.rawData)
 
     def __str__(self):
         output = ''
@@ -191,3 +194,8 @@ class Road(object):
         self.start = start
         self.end = end
         self.passageway = passageway
+
+
+def command_generater(user:str, inst:str):
+    return '|'.join([user, inst])
+

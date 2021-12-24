@@ -7,6 +7,9 @@ import aioredis
 
 import logging
 import async_timeout
+from consts import REDISKEYS, INSTRUCT
+from common import command_generater
+
 
 logging.basicConfig(
     format="%(asctime)s %(message)s",
@@ -16,10 +19,18 @@ logger = logging.getLogger("websockets.client")
 
 STOPWORD = "STOP"
 
+connected = set()
+
 async def consumer_handler(websocket, redis, user):
+
+    # 先发送一条初始化数据，让客户端渲染地图等
+    command = command_generater(user, INSTRUCT.INIT)
+    await redis.lpush(REDISKEYS.CLIENTCOMMANDS, command )
+
     async for message in websocket:
-        command = '|'.join([user, message])
-        await redis.lpush('client_commands', command )
+        command = command_generater(user, message)
+        await redis.lpush(REDISKEYS.CLIENTCOMMANDS, command )
+
 
 async def producer_handler(websocket, ch):
     while True:
@@ -27,29 +38,28 @@ async def producer_handler(websocket, ch):
             async with async_timeout.timeout(1):
                 message = await ch.get_message(ignore_subscribe_messages=True)
                 if message is not None:
-                    print(f"(Reader) Message Received: {message}")
                     if message["data"].decode() == STOPWORD:
-                        print("(Reader) STOP")
                         break
                     await websocket.send(message['data'])
                 await asyncio.sleep(0.01)
         except asyncio.TimeoutError:
             pass
 
-connected = set()
 
 async def handler(websocket):
     token = await websocket.recv()
     consumer_redis = await aioredis.from_url('redis://localhost')
     pub_redis = await aioredis.from_url('redis://localhost')
 
-    user = await consumer_redis.get(token)
+    user = await consumer_redis.hget(REDISKEYS.TOKENS, token)
     if user is None:
         await websocket.close(1011, "authentication failed")
         return
     user = user.decode('utf8')
+    logger.info(f'{user} logged.')
     pubsub = pub_redis.pubsub()
-    await pubsub.subscribe("channel:"+user)
+    logger.info(f'start to sub {REDISKEYS.CHANNEL + user}')
+    await pubsub.subscribe(REDISKEYS.CHANNEL + user)
 
     connected.add(websocket)
     await asyncio.gather(

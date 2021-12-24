@@ -18,3 +18,13 @@ class REDISKEYS(object):
     LOOTLEVEL: Final =  "loot_level_matrix_"
     INTERACTABLELEVEL: Final =  "interactable_level_matrix_"
     ROOMS: Final =  "rooms_"
+    TOKENS: Final = "mmorl_tokens"
+    USERS: Final = "mmorl_users"
+    CLIENTCOMMANDS: Final = "mmorl_client_commands"
+    CHANNEL: Final = "mmorl_channel:"
+
+
+class INSTRUCT(object):
+    INIT: Final = 'INIT'
+    SPAWNPLAYER: Final = 'SPAWNPLAYER'
+
