@@ -4,6 +4,7 @@ from random import randint, choice
 from common import Vector2, MyMatrix, Room
 from abc import ABCMeta
 from consts import REDISKEYS, INSTRUCT
+from uuid import uuid4
 import logging
 import json
 import redis
@@ -59,7 +60,8 @@ class ObjectStore(object):
         for k,v in self.store.items():
             res[k] = {
                 "hp": v.hp,
-                "maxHp": v.max_hp
+                "maxHp": v.max_hp,
+                "uid": v.uid
             }
             
         return res
@@ -68,6 +70,7 @@ objStore = ObjectStore()
 
 
 class MoveObject(metaclass=ABCMeta):
+    uid: str
     hp:int
     max_hp:int
     min_attack:int
@@ -85,6 +88,7 @@ class MoveObject(metaclass=ABCMeta):
         interactable[position] = self.type_code
         objStore[str(position.x) + str(position.y)] = self
         self.hp = self.max_hp
+        self.uid = str(uuid4())
 
     def kick(self, damage):
         logger.info('kick ' + self.__class__.__name__)
@@ -228,15 +232,19 @@ class GameManager(object):
             ),
             mapWidth=dungeon_width,
             mapLength=dungeon_height,
-            hp=player.hp,
+            playerUID=player.uid,
             messages=[f"「{user}」 进入了游戏。"],
             maxHp=player.max_hp,
+            username=user,
             objStore = objStore.json()
         ))
 
         redis_key = REDISKEYS.CHANNEL + user
-        print(f'publish to {redis_key}')
         redis_conn.publish(redis_key, payload)
+
+    def setAction(self, user:str, action:str, *args):
+        pass
+
 
 
 def command_controller(gm: GameManager, command_bytes: bytes):
@@ -248,6 +256,8 @@ def command_controller(gm: GameManager, command_bytes: bytes):
         gm.send_init_message(user)
     elif instruct == INSTRUCT.SPAWNPLAYER:
         gm.spawnPlayer(user)
+    elif instruct == INSTRUCT.MOVE:
+        gm.setAction(user, INSTRUCT.MOVE, *args)
     else:
         return
 

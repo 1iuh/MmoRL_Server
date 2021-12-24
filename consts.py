@@ -27,4 +27,5 @@ class REDISKEYS(object):
 class INSTRUCT(object):
     INIT: Final = 'INIT'
     SPAWNPLAYER: Final = 'SPAWNPLAYER'
+    MOVE: Final = 'MOVE'
 
