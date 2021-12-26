@@ -8,11 +8,11 @@ from uuid import uuid4
 redis_conn = redis.Redis(host='localhost', port=6379, db=0)
 
 class DungeonGenerator(object):
-    max_room_size = 12
+    max_room_size = 20
     min_room_size = 7
-    map_width =  99
-    map_height = 99
-    room_number = 10
+    map_width =  999
+    map_height = 999
+    room_number = 99
     floor_level_matrix: MyMatrix
     loot_level_matrix: MyMatrix
     interactable_level_matrix: MyMatrix
@@ -68,7 +68,7 @@ class DungeonGenerator(object):
         # write_floor
         self.write_matrix(self.floor_level_matrix, room.points, FLOOR.NORMAL)
         # write_wall
-        self.write_matrix(self.interactable_level_matrix, room.walls, WALL.NORMAL)
+        self.write_matrix(self.floor_level_matrix, room.walls, WALL.NORMAL)
 
 
     @staticmethod
@@ -182,14 +182,16 @@ class DungeonGenerator(object):
         self.write_matrix(self.floor_level_matrix, road.passageway, FLOOR.NORMAL)
         # 如果对路上有墙， 就把墙换成门
         for pt in road.passageway:
-            if self.interactable_level_matrix[pt] == WALL.NORMAL:
+            if self.floor_level_matrix[pt] == WALL.NORMAL:
+                self.floor_level_matrix[pt] = FLOOR.NORMAL
                 self.interactable_level_matrix[pt] = INTERACTABLE.DOOR;
         # 把路边的墙画上
         road_wall = get_road_wall_points(road_arr) 
         self.roads.append(road)
-        self.write_matrix(self.interactable_level_matrix, road_wall, WALL.NORMAL)
+        self.write_matrix(self.floor_level_matrix, road_wall, WALL.NORMAL)
 
         # 把门画上
+        self.write_matrix(self.floor_level_matrix, [start, end], FLOOR.NORMAL) # type:ignore
         self.write_matrix(self.interactable_level_matrix, [start, end], INTERACTABLE.DOOR) #type: ignore
 
         return

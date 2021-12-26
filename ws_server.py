@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("websockets.client")
 
-STOPWORD = "STOP"
+STOPWORD = b"STOP"
 
 connected = set()
 
@@ -38,7 +38,7 @@ async def producer_handler(websocket, ch):
             async with async_timeout.timeout(1):
                 message = await ch.get_message(ignore_subscribe_messages=True)
                 if message is not None:
-                    if message["data"].decode() == STOPWORD:
+                    if message["data"] == STOPWORD:
                         break
                     await websocket.send(message['data'])
                 await asyncio.sleep(0.01)

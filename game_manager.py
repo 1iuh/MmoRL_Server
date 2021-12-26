@@ -2,19 +2,20 @@
 
 from random import randint, choice
 from common import Vector2, MyMatrix, Room
-from abc import ABCMeta
-from consts import REDISKEYS, INSTRUCT
-from uuid import uuid4
+from consts import REDISKEYS, INSTRUCT, WALL, INTERACTABLE
+from actions import Action
+from move_objects import Player, Door, Enemy, MoveObject
+import msgpack 
 import logging
-import json
 import redis
 import time
 
-dungeon_id = 'a3cae75a-8077-46eb-87be-51a5ac805192'
-dungeon_width = 99
-dungeon_height = 99
+dungeon_id = 'b42c310c-9c75-4eb6-b2e6-11b2001f99c5'
+dungeon_width = 999
+dungeon_height = 999
 
 redis_conn = redis.Redis(host='localhost', port=6379, db=0)
+redis_conn.delete(REDISKEYS.USERS)
 
 logging.basicConfig(
     format="%(asctime)s %(message)s",
@@ -40,211 +41,141 @@ messages = []
 players = {}
 
 class ObjectStore(object):
-    store: dict
+    uid_dict: dict
+    position_dict: dict
 
     def __init__(self):
-        self.store = dict()
+        self.uid_dict = dict()
+        self.position_dict = dict()
+            
+    @staticmethod
+    def get_position_key(position:Vector2):
+        return "_".join([str(position.x), str(position.y)])
 
-    def __getitem__(self, key):
-        return self.store[key]
+    def get_by_position(self, position:Vector2):
+        return self.position_dict.get(self.get_position_key(position))
 
-    def __setitem__(self, key, val):
-        self.store[key] = val
+    def __getitem__(self, uid)->MoveObject:
+        return self.uid_dict[uid]
 
-    def __delitem__(self, key):
-        del self.store[key]
+    def __setitem__(self, uid, obj):
+        self.uid_dict[uid] = obj
+        self.position_dict[self.get_position_key(obj.position)] = obj
 
-    def json(self):
-        res = dict()
+    def __delitem__(self, uid):
+        obj = self.uid_dict[uid]
+        if obj is None:
+            return
+        del self.position_dict[self.get_position_key(obj.position)]
 
-        for k,v in self.store.items():
-            res[k] = {
+    def update(self, obj):
+        self.position_dict[self.get_position_key(obj.position)] = obj
+
+    def dumps(self):
+        res = []
+        for _,v in self.uid_dict.items():
+            res.append({
+                "x": v.position.x,
+                "y": v.position.y,
                 "hp": v.hp,
                 "maxHp": v.max_hp,
-                "uid": v.uid
-            }
-            
+                "uid": v.uid,
+                "sign": v.sign
+            })
         return res
+
+
+    def has_wall(self, position:Vector2):
+        if floor[position] == WALL.NORMAL: 
+            return True
+        return False
+        
 
 objStore = ObjectStore()
 
-
-class MoveObject(metaclass=ABCMeta):
-    uid: str
-    hp:int
-    max_hp:int
-    min_attack:int
-    max_attack:int
-    type_code:int
-    position: Vector2
-    name: str
-
-    @property
-    def attack(self):
-        return randint(self.min_attack, self.max_attack)
-
-    def __init__(self, position):
-        self.position = position
-        interactable[position] = self.type_code
-        objStore[str(position.x) + str(position.y)] = self
-        self.hp = self.max_hp
-        self.uid = str(uuid4())
-
-    def kick(self, damage):
-        logger.info('kick ' + self.__class__.__name__)
-        messages.append(f'你攻击「{self.name}」造成了「{damage}」点伤害。')
-        self.hp = self.hp - damage
-        if (self.hp < 0):
-            self.destroy()
-            return 0
-        else:
-            return self.attack
-
-    def destroy(self):
-        logger.info(self.__class__.__name__ + ' destroy!')
-        messages.append(f'「{self.name}」被摧毁了。')
-        interactable[self.position] = 0
-        del objStore[str(self.position.x) + str(self.position.y)]
-
-
-    def __str__(self):
-        return self.type_code
-
-
-class Door(MoveObject):
-    max_hp = 1
-    min_attack = 0
-    max_attack = 0
-    type_code = 4
-    name = "门"
-
-
-class Enemy(MoveObject):
-    max_hp = 10
-    min_attack = 4
-    max_attack = 7
-    type_code = 5
-    name = "吸血鬼"
-
-
-class Player(MoveObject):
-
-    username: str
-    max_hp = 30
-    min_attack = 3
-    max_attack = 8
-    type_code = 2
-
-    def __init__(self, vender, username):
-        self.username = username
-        super().__init__(vender)
-
-
 class GameManager(object):
 
+    def __init__(self):
+        for pt, v in interactable:
+            if v == INTERACTABLE.DOOR:
+                Door(pt, objStore)
+            
+
     def spawnEnemy(self):
-        for _ in range(0, randint(5, 10)):
+        for _ in range(0, randint(400, 500)):
             pt = choice(choice(rooms).floors)
-            Enemy(pt)
+            if objStore.get_by_position(pt) is None:
+                Enemy(pt, objStore)
+
         
-    def AttemptMove(self, username, position):
-        player = players[username]
-        if interactable[position] == 3:
-            return False
-        if interactable[position] == 4:
-            Door(position)
-        if interactable[position] > 3:
-            mb = objStore[str(position.x) + str(position.y)]
-            damage = mb.kick(player.attack)
-            player.hp = player.hp - damage
-            if damage > 0 :
-                messages.append(f'「{mb.name}」对你造成了「{damage}」点伤害。')
-            return False
+    # def AttemptMove(self, username, position):
+    #     player = players[username]
+    #     if interactable[position] == 3:
+    #         return False
+    #     if interactable[position] > 3:
+    #         mb = objStore.get_by_position(position)
+    #         damage = mb.kick(player.attack)
+    #         player.hp = player.hp - damage
+    #         if damage > 0 :
+    #             messages.append(f'「{mb.name}」对你造成了「{damage}」点伤害。')
+    #         return False
 
-        return True
+    #     return True
 
-    # def moveUp(self):
-    #     position = self.playerPosition.copy()
-    #     position.y = position.y + 1
-    #     if self.AttemptMove(position) :
-    #         interactable[self.playerPosition] = 0
-    #         interactable[position] = 2
-    #         self.playerPosition = position
-
-
-    # def moveDown(self):
-    #     position = self.playerPosition.copy()
-    #     position.y = position.y -1
-    #     if self.AttemptMove(position) :
-    #         interactable[self.playerPosition] = 0
-    #         interactable[position] = 2
-    #         self.playerPosition = position
-
-    # def moveLeft(self):
-    #     position = self.playerPosition.copy()
-    #     position.x = position.x - 1
-    #     if self.AttemptMove(position) :
-    #         interactable[self.playerPosition] = 0
-    #         interactable[position] = 2
-    #         self.playerPosition = position
-
-    # def moveRight(self):
-    #     position = self.playerPosition.copy()
-    #     position.x = position.x + 1
-    #     if self.AttemptMove(position) :
-    #         interactable[self.playerPosition] = 0
-    #         interactable[position] = 2
-    #         self.playerPosition = position
-
-    def update(self):
-        pass
-        # msg = messages.copy()
-        # messages.clear()
-
-        # return json.dumps(dict(
-        #     tp=self.tp,
-        #     layers=dict(
-        #         floor="",
-        #         obj=obj.toHex()
-        #     ),
-        #     mapWidth=dungeon.map_width,
-        #     mapLength=dungeon.map_height,
-        #     messages=msg,
-        #     hp=self.player.hp,
-        #     maxHp=self.player.max_hp,
-        #     objStore = objStore.json()
-        # ))
 
     def spawnPlayer(self, username):
         pt = choice(choice(rooms).floors)
-        player = Player(pt, username)
+        player = Player(pt, objStore, username)
         players[username] = player
         return
         
 
     def send_init_message(self, user):
-        player = players[user]
-        payload = json.dumps(dict(
-            tp='INIT',
-            layers=dict(
-                floor=floor.toHex(),
-                interactable=interactable.toHex()
-            ),
-            mapWidth=dungeon_width,
-            mapLength=dungeon_height,
-            playerUID=player.uid,
-            messages=[f"「{user}」 进入了游戏。"],
-            maxHp=player.max_hp,
-            username=user,
-            objStore = objStore.json()
+        player = players.get(user)
+        if player is None:
+            return
+        payload = msgpack.packb(dict(
+            messageType='INIT',
+            data = dict(
+                layers=dict(
+                    floor=floor.rawData,
+                ),
+                mapWidth=dungeon_width,
+                mapLength=dungeon_height,
+                playerUID=player.uid,
+                messages=[f"「{user}」 进入了游戏。"],
+                maxHp=player.max_hp,
+                hp=player.hp,
+                username=user,
+                moveObjects = objStore.dumps()
+            )
         ))
-
         redis_key = REDISKEYS.CHANNEL + user
-        redis_conn.publish(redis_key, payload)
+        redis_conn.publish(redis_key, payload) #type: ignore 
 
-    def setAction(self, user:str, action:str, *args):
-        pass
+    def setPlayerAction(self, username:str, instruct:str, *args):
+        player = players.get(username)
+        if player is None:
+            return
+        player.action = Action.factory(instruct, *args)
+        
+    def setAction(self, uid:str, instruct:str, *args):
+        obj = objStore[uid]
+        obj.action = Action.factory(instruct, *args) # type:ignore
 
+    def nextTurn(self):
+        for _, obj in objStore.uid_dict.items():
+            obj.energy += 100
+            obj.excuteAction()
+
+        for _, player in players.items():
+            redis_key = REDISKEYS.CHANNEL + player.username
+            payload = msgpack.packb(dict(
+                messageType='UPDATE',
+                data = objStore.dumps()
+            ))
+            redis_conn.publish(redis_key, payload) #type: ignore 
+            
 
 
 def command_controller(gm: GameManager, command_bytes: bytes):
@@ -257,7 +188,7 @@ def command_controller(gm: GameManager, command_bytes: bytes):
     elif instruct == INSTRUCT.SPAWNPLAYER:
         gm.spawnPlayer(user)
     elif instruct == INSTRUCT.MOVE:
-        gm.setAction(user, INSTRUCT.MOVE, *args)
+        gm.setPlayerAction(user, INSTRUCT.MOVE, *args)
     else:
         return
 
@@ -265,8 +196,13 @@ def command_controller(gm: GameManager, command_bytes: bytes):
 if __name__ == '__main__':
     gm = GameManager()
     gm.spawnEnemy()
+    i = 0
     while True:
         command = redis_conn.rpop(REDISKEYS.CLIENTCOMMANDS)
         if command:
             command_controller(gm, command)
+        i += 1
+        if i == 2:
+            gm.nextTurn()
+            i = 0
         time.sleep(0.1)

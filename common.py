@@ -44,6 +44,19 @@ class MyMatrix(object):
             output = ''.join(str(i) for i in self.rawData[start: end]) + '\n' + output
         return output
 
+    def __iter__(self):
+        self._iter_num = 0
+        return self
+
+    def __next__(self):
+        if self._iter_num > (self.width * self.height - 1):
+            raise StopIteration
+        y, x = divmod(self._iter_num, self.width)
+        pt = Vector2(x, y)
+        v = self[pt]
+        self._iter_num += 1
+        return pt, v
+
     def toHex(self):
         return self.rawData.hex()
 
