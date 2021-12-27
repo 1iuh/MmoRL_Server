@@ -22,14 +22,17 @@ STOPWORD = b"STOP"
 connected = set()
 
 async def consumer_handler(websocket, redis, user):
-
-    # 先发送一条初始化数据，让客户端渲染地图等
-    command = command_generater(user, INSTRUCT.INIT)
-    await redis.lpush(REDISKEYS.CLIENTCOMMANDS, command )
-
-    async for message in websocket:
-        command = command_generater(user, message)
+    try:
+        # 先发送一条初始化数据，让客户端渲染地图等
+        command = command_generater(user, INSTRUCT.INIT)
         await redis.lpush(REDISKEYS.CLIENTCOMMANDS, command )
+
+        async for message in websocket:
+            command = command_generater(user, message)
+            await redis.lpush(REDISKEYS.CLIENTCOMMANDS, command )
+    finally:
+        command = command_generater(user, INSTRUCT.DISCONNECT)
+        await redis.lpush(REDISKEYS.CLIENTCOMMANDS, command)
 
 
 async def producer_handler(websocket, ch):

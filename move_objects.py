@@ -1,6 +1,6 @@
 from abc import ABCMeta
 from common import Vector2
-from consts import WALL, INTERACTABLE
+from consts import INTERACTABLE
 from random import choice
 from actions import Move
 from uuid import uuid4
@@ -15,7 +15,7 @@ logger = logging.getLogger("GameManager")
 
 
 class MoveObject(metaclass=ABCMeta):
-    uid: str
+    uid: int
     hp:int
     max_hp:int
     min_attack:int
@@ -26,13 +26,11 @@ class MoveObject(metaclass=ABCMeta):
     energy: int
     sign: int
 
-    @property
-    def attack(self):
-        return randint(self.min_attack, self.max_attack)
+    is_player = False
 
     def __init__(self, position,  objStore):
         self.position = position
-        self.uid = str(uuid4())
+        self.uid = uuid4().int & (1<<64)-1
         objStore[self.uid] = self
         self.hp = self.max_hp
         self.energy = 0
@@ -45,25 +43,23 @@ class MoveObject(metaclass=ABCMeta):
             return
         self.action.excute(self, self.objStore)
 
-    def kick(self, damage):
-        logger.info('kick ' + self.__class__.__name__)
-        # messages.append(f'你攻击「{self.name}」造成了「{damage}」点伤害。')
-        self.hp = self.hp - damage
-        if (self.hp < 0):
-            self.destroy()
-            return 0
-        else:
-            return self.attack
-
     def destroy(self):
         logger.info(self.__class__.__name__ + ' destroy!')
         # messages.append(f'「{self.name}」被摧毁了。')
 
     def think(self):
-        return None
+        return
 
     def __str__(self):
         return self.sign
+
+    def attack(self, target):
+        damage = randint(self.min_attack,self.max_attack)
+        target.underAttack(damage, self)
+
+    def underAttack(self, damage, target):
+        self.hp -= damage
+        return f'你攻击「{self.name}」造成了「{damage}」点伤害。'
 
 
 
@@ -84,6 +80,7 @@ class Enemy(MoveObject):
 
     def think(self):
         self.action = Move(choice(["UP","DOWN","LEFT","RIGHT"]))
+        return
 
 class Player(MoveObject):
 
@@ -93,8 +90,27 @@ class Player(MoveObject):
     max_attack = 8
     type_code = 2
     sign = INTERACTABLE.PLAYER
+    is_player = True
+    messages: list[str]
 
     def __init__(self, vender, objStore, username):
         self.username = username
+        self.messages = []
         super().__init__(vender, objStore)
 
+    def attack(self, target):
+        damage = randint(self.min_attack,self.max_attack)
+        battle_log = target.underAttack(damage, self)
+        if self.is_player:
+            self.messages.append(battle_log)
+
+    def underAttack(self, damage, target):
+        self.hp -= damage
+        battle_log = f'「{target.name}」攻击你造成了「{damage}」点伤害。'
+        if self.is_player:
+            self.messages.append(battle_log)
+        return f'你攻击「{self.name}」造成了「{damage}」点伤害。'
+
+    @property
+    def name(self):
+        return self. username

@@ -22,11 +22,12 @@ class Move(Action):
     direction:str
     cast = 100
 
-
     def __init__(self, direction):
         self.direction = direction
 
     def excute(self, target, obj_store):
+        if target.hp <= 0:
+            return
         # 能量是否够
         if target.energy < self.cast:
             self.cast -= target.energy
@@ -49,11 +50,8 @@ class Move(Action):
             return
 
         other = obj_store.get_by_position(position)
-
-        # 如果有其他对象 TODO
-        if other is not None:
+        # 如果有其他对象, 就攻击
+        if other is not None and other.hp >0:
+            target.attack(other)
             return
-        del obj_store[target.uid]
-        target.position = position
-        obj_store.update(target)
-        # 是否有其他对象
+        obj_store.move(target, position)

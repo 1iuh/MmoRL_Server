@@ -39,6 +39,7 @@ for room_str in redis_conn.lrange(room_redis_key, 0, -1):
 
 messages = []
 players = {}
+online_player = {}
 
 class ObjectStore(object):
     uid_dict: dict
@@ -62,26 +63,32 @@ class ObjectStore(object):
         self.uid_dict[uid] = obj
         self.position_dict[self.get_position_key(obj.position)] = obj
 
-    def __delitem__(self, uid):
+    def move(self, obj, position):
+        self.position_dict[self.get_position_key(obj.position)] = None
+        obj.position = position
+        self.position_dict[self.get_position_key(obj.position)] = obj
+
+    def delete(self, uid):
         obj = self.uid_dict[uid]
         if obj is None:
             return
         del self.position_dict[self.get_position_key(obj.position)]
-
-    def update(self, obj):
-        self.position_dict[self.get_position_key(obj.position)] = obj
+        del self.uid_dict[uid]
 
     def dumps(self):
         res = []
         for _,v in self.uid_dict.items():
-            res.append({
-                "x": v.position.x,
-                "y": v.position.y,
-                "hp": v.hp,
-                "maxHp": v.max_hp,
-                "uid": v.uid,
-                "sign": v.sign
-            })
+            if v.hp > 0:
+                res.append({
+                    "uid": v.uid,
+                    "x": v.position.x,
+                    "y": v.position.y,
+                    "hp": v.hp,
+                    "maxHp": v.max_hp,
+                    "energy": v.energy,
+                    "sign": v.sign
+                })
+        print(len(res))
         return res
 
 
@@ -102,27 +109,12 @@ class GameManager(object):
             
 
     def spawnEnemy(self):
-        for _ in range(0, randint(400, 500)):
+        for _ in range(0, randint(50, 100)):
             pt = choice(choice(rooms).floors)
             if objStore.get_by_position(pt) is None:
                 Enemy(pt, objStore)
 
         
-    # def AttemptMove(self, username, position):
-    #     player = players[username]
-    #     if interactable[position] == 3:
-    #         return False
-    #     if interactable[position] > 3:
-    #         mb = objStore.get_by_position(position)
-    #         damage = mb.kick(player.attack)
-    #         player.hp = player.hp - damage
-    #         if damage > 0 :
-    #             messages.append(f'「{mb.name}」对你造成了「{damage}」点伤害。')
-    #         return False
-
-    #     return True
-
-
     def spawnPlayer(self, username):
         pt = choice(choice(rooms).floors)
         player = Player(pt, objStore, username)
@@ -134,6 +126,7 @@ class GameManager(object):
         player = players.get(user)
         if player is None:
             return
+        online_player[user]= player;
         payload = msgpack.packb(dict(
             messageType='INIT',
             data = dict(
@@ -164,18 +157,44 @@ class GameManager(object):
         obj.action = Action.factory(instruct, *args) # type:ignore
 
     def nextTurn(self):
+
+        destroy_list = []
+        # 执行
         for _, obj in objStore.uid_dict.items():
+            if obj.hp <= 0:
+                destroy_list.append(obj)
             obj.energy += 100
             obj.excuteAction()
 
-        for _, player in players.items():
-            redis_key = REDISKEYS.CHANNEL + player.username
+        # 给客户端推消息
+        for username, player in online_player.items():
+
+            redis_key = REDISKEYS.CHANNEL + username
+            if player.hp <= 0:
+                payload = msgpack.packb(dict(
+                    messageType='GAMEOVER',
+                ))
+                redis_conn.publish(redis_key, payload) #type: ignore 
+                return
+
             payload = msgpack.packb(dict(
                 messageType='UPDATE',
-                data = objStore.dumps()
+                data = {
+                    "moveObjects": objStore.dumps(),
+                    "messages": player.messages,
+
+                }
             ))
             redis_conn.publish(redis_key, payload) #type: ignore 
-            
+
+        # 销毁对象
+        while len(destroy_list) > 0:
+            obj = destroy_list.pop()
+            objStore.delete(obj.uid)
+
+    def playerDisconnect(self, user):
+        logger.info(f'{user} 断开链接')
+        del online_player[user]
 
 
 def command_controller(gm: GameManager, command_bytes: bytes):
@@ -189,6 +208,8 @@ def command_controller(gm: GameManager, command_bytes: bytes):
         gm.spawnPlayer(user)
     elif instruct == INSTRUCT.MOVE:
         gm.setPlayerAction(user, INSTRUCT.MOVE, *args)
+    elif instruct == INSTRUCT.DISCONNECT:
+        gm.playerDisconnect(user)
     else:
         return
 
@@ -205,4 +226,4 @@ if __name__ == '__main__':
         if i == 2:
             gm.nextTurn()
             i = 0
-        time.sleep(0.1)
+        time.sleep(1)
