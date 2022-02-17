@@ -88,7 +88,6 @@ class ObjectStore(object):
                     "energy": v.energy,
                     "sign": v.sign
                 })
-        print(len(res))
         return res
 
 
@@ -214,6 +213,7 @@ def command_controller(gm: GameManager, command_bytes: bytes):
         return
 
 
+
 if __name__ == '__main__':
     gm = GameManager()
     gm.spawnEnemy()
@@ -222,8 +222,8 @@ if __name__ == '__main__':
         command = redis_conn.rpop(REDISKEYS.CLIENTCOMMANDS)
         if command:
             command_controller(gm, command)
-        i += 1
-        if i == 2:
             gm.nextTurn()
-            i = 0
-        time.sleep(1)
+        # i += 1
+        # if i == 2:
+        #     i = 0
+        time.sleep(0.01)
