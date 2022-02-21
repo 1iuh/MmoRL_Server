@@ -9,6 +9,9 @@ class Vector2(object):
     def copy(self):
         return Vector2(self.x, self.y)
 
+    def __repr__(self):
+        return '(' + str(self.x) + ',' + str(self.y) +')'
+
 
 class MyMatrix(object):
     rawData: bytearray

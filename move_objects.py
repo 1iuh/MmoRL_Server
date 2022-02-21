@@ -25,6 +25,8 @@ class MoveObject(metaclass=ABCMeta):
     action = None
     energy: int
     sign: int
+    vision: list
+    vision_range = 8
 
     is_player = False
 
@@ -37,6 +39,7 @@ class MoveObject(metaclass=ABCMeta):
         self.objStore = objStore
 
     def excuteAction(self):
+
         if self.action is None:
             self.think()
         if self.action is None:

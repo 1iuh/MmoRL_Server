@@ -5,6 +5,7 @@ from common import Vector2, MyMatrix, Room
 from consts import REDISKEYS, INSTRUCT, WALL, INTERACTABLE
 from actions import Action
 from move_objects import Player, Door, Enemy, MoveObject
+from ray_casting import ray_casting
 import msgpack 
 import logging
 import redis
@@ -164,6 +165,7 @@ class GameManager(object):
                 destroy_list.append(obj)
             obj.energy += 100
             obj.excuteAction()
+            obj.vision = ray_casting(floor, obj.position, obj.vision_range)
 
         # 给客户端推消息
         for username, player in online_player.items():
@@ -179,6 +181,7 @@ class GameManager(object):
             payload = msgpack.packb(dict(
                 messageType='UPDATE',
                 data = {
+                    "vision": player.vision,
                     "moveObjects": objStore.dumps(),
                     "messages": player.messages,
 
@@ -211,7 +214,6 @@ def command_controller(gm: GameManager, command_bytes: bytes):
         gm.playerDisconnect(user)
     else:
         return
-
 
 
 if __name__ == '__main__':
