@@ -1,5 +1,5 @@
 from abc import ABCMeta
-from common import Vector2
+from common import Vector2, MyMatrix
 from consts import INTERACTABLE
 from random import choice
 from actions import Move
@@ -25,7 +25,7 @@ class MoveObject(metaclass=ABCMeta):
     action = None
     energy: int
     sign: int
-    vision: list
+    vision: MyMatrix
     vision_range = 8
 
     is_player = False
@@ -94,12 +94,18 @@ class Player(MoveObject):
     type_code = 2
     sign = INTERACTABLE.PLAYER
     is_player = True
+    explored_floor: MyMatrix
+
     messages: list[str]
 
     def __init__(self, vender, objStore, username):
         self.username = username
         self.messages = []
         super().__init__(vender, objStore)
+
+    def inti_explored_floor(self, map_width, map_length):
+        self.explored_floor = MyMatrix(map_width, map_length)
+        self.explored_floor.fillMatrixWithZero()
 
     def attack(self, target):
         damage = randint(self.min_attack,self.max_attack)

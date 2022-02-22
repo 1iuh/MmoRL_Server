@@ -11,12 +11,20 @@ import logging
 import redis
 import time
 
-dungeon_id = 'b42c310c-9c75-4eb6-b2e6-11b2001f99c5'
-dungeon_width = 999
-dungeon_height = 999
-
 redis_conn = redis.Redis(host='localhost', port=6379, db=0)
 redis_conn.delete(REDISKEYS.USERS)
+
+redis_key = 'currency_dungeon'
+
+dungeon_width:int
+dungeon_height:int
+
+dungeon_id = redis_conn.hget(redis_key, 'dungeon_id')
+if dungeon_id is None:
+    raise Exception()
+dungeon_id = dungeon_id.decode('utf8')
+dungeon_width = int(redis_conn.hget(redis_key, 'width').decode('utf8')) # type: ignore
+dungeon_height = int(redis_conn.hget(redis_key, 'height').decode('utf8')) # type: ignore
 
 logging.basicConfig(
     format="%(asctime)s %(message)s",
@@ -109,7 +117,7 @@ class GameManager(object):
             
 
     def spawnEnemy(self):
-        for _ in range(0, randint(50, 100)):
+        for _ in range(0, randint(1, 3)):
             pt = choice(choice(rooms).floors)
             if objStore.get_by_position(pt) is None:
                 Enemy(pt, objStore)
@@ -118,6 +126,9 @@ class GameManager(object):
     def spawnPlayer(self, username):
         pt = choice(choice(rooms).floors)
         player = Player(pt, objStore, username)
+        player.inti_explored_floor(dungeon_width, dungeon_height)
+        player.vision = ray_casting(floor, player.position, player.vision_range) 
+        player.explored_floor.setMatrix((floor.toInt() & player.vision.toInt()).to_bytes(dungeon_height*dungeon_width, 'big')) 
         players[username] = player
         return
         
@@ -127,14 +138,16 @@ class GameManager(object):
         if player is None:
             return
         online_player[user]= player;
+
         payload = msgpack.packb(dict(
             messageType='INIT',
             data = dict(
                 layers=dict(
-                    floor=floor.rawData,
+                    floor=player.explored_floor.rawData, # type: ignore
                 ),
-                mapWidth=dungeon_width,
-                mapLength=dungeon_height,
+                #vision=player.vision,
+                mapWidth=dungeon_width, # type: ignore
+                mapLength=dungeon_height, # type: ignore
                 playerUID=player.uid,
                 messages=[f"「{user}」 进入了游戏。"],
                 maxHp=player.max_hp,
@@ -171,6 +184,7 @@ class GameManager(object):
         for username, player in online_player.items():
 
             redis_key = REDISKEYS.CHANNEL + username
+
             if player.hp <= 0:
                 payload = msgpack.packb(dict(
                     messageType='GAMEOVER',
@@ -178,12 +192,14 @@ class GameManager(object):
                 redis_conn.publish(redis_key, payload) #type: ignore 
                 return
 
+            player.explored_floor.setMatrix((player.explored_floor.toInt() | (floor.toInt() & player.vision.toInt())).to_bytes(dungeon_height*dungeon_width, 'big')) 
             payload = msgpack.packb(dict(
                 messageType='UPDATE',
                 data = {
-                    "vision": player.vision,
+                    #"vision": player.vision,
+                    "floor": player.explored_floor.rawData, # type: ignore
                     "moveObjects": objStore.dumps(),
-                    "messages": player.messages,
+                    "messages": "",
 
                 }
             ))
@@ -196,7 +212,7 @@ class GameManager(object):
 
     def playerDisconnect(self, user):
         logger.info(f'{user} 断开链接')
-        del online_player[user]
+        # del online_player[user]
 
 
 def command_controller(gm: GameManager, command_bytes: bytes):
@@ -210,6 +226,7 @@ def command_controller(gm: GameManager, command_bytes: bytes):
         gm.spawnPlayer(user)
     elif instruct == INSTRUCT.MOVE:
         gm.setPlayerAction(user, INSTRUCT.MOVE, *args)
+        gm.nextTurn()
     elif instruct == INSTRUCT.DISCONNECT:
         gm.playerDisconnect(user)
     else:
@@ -218,14 +235,10 @@ def command_controller(gm: GameManager, command_bytes: bytes):
 
 if __name__ == '__main__':
     gm = GameManager()
+
     gm.spawnEnemy()
-    i = 0
     while True:
         command = redis_conn.rpop(REDISKEYS.CLIENTCOMMANDS)
         if command:
             command_controller(gm, command)
-            gm.nextTurn()
-        # i += 1
-        # if i == 2:
-        #     i = 0
         time.sleep(0.01)

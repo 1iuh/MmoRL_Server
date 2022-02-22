@@ -63,9 +63,19 @@ class MyMatrix(object):
     def toHex(self):
         return self.rawData.hex()
 
+    def output(self):
+        h = self.rawData
+        out = []
+        for i in range(0, self.height):
+            0 + i * self.width
+            out.insert(0, h[0 + i * self.width: (i+1) * self.width].hex())
+        return '\n'.join(out)
 
     def toBytes(self):
         return bytes(self.rawData)
+
+    def toInt(self):
+        return int.from_bytes(self.rawData, 'big')
 
 
 class Point(Vector2):

@@ -8,11 +8,11 @@ from uuid import uuid4
 redis_conn = redis.Redis(host='localhost', port=6379, db=0)
 
 class DungeonGenerator(object):
-    max_room_size = 20
-    min_room_size = 7
-    map_width =  999
-    map_height = 999
-    room_number = 99
+    max_room_size = 12
+    min_room_size = 5
+    map_width =  200
+    map_height = 150
+    room_number = randint(20, 30)
     floor_level_matrix: MyMatrix
     loot_level_matrix: MyMatrix
     interactable_level_matrix: MyMatrix
@@ -24,8 +24,10 @@ class DungeonGenerator(object):
         self.rooms = []
         self.roads = []
         self.dungeon_id = str(uuid4())
-        print(self.dungeon_id )
-
+        redis_key= 'currency_dungeon'
+        redis_conn.hset(redis_key, 'dungeon_id', self.dungeon_id )
+        redis_conn.hset(redis_key, 'width', self.map_width )
+        redis_conn.hset(redis_key, 'height', self.map_height)
 
     def generate(self):
         self.floor_level_matrix = MyMatrix(self.map_width, self.map_height)
@@ -213,8 +215,11 @@ class DungeonGenerator(object):
         loot_redis_key = REDISKEYS.LOOTLEVEL + self.dungeon_id
         interactable_redis_key= REDISKEYS.INTERACTABLELEVEL + self.dungeon_id
         room_redis_key= REDISKEYS.ROOMS + self.dungeon_id
+
         redis_conn.set(floor_redis_key, self.floor_level_matrix.toBytes())
         redis_conn.set(loot_redis_key, self.loot_level_matrix.toBytes())
+        redis_conn.set(interactable_redis_key, self.interactable_level_matrix.toBytes())
+        redis_conn.set(interactable_redis_key, self.interactable_level_matrix.toBytes())
         redis_conn.set(interactable_redis_key, self.interactable_level_matrix.toBytes())
         for room in self.rooms:
             redis_conn.lpush(room_redis_key, str(room))
