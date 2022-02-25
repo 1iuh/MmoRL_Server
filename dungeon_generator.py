@@ -10,15 +10,22 @@ redis_conn = redis.Redis(host='localhost', port=6379, db=0)
 class DungeonGenerator(object):
     max_room_size = 12
     min_room_size = 5
-    map_width =  200
-    map_height = 150
-    room_number = randint(20, 30)
+    map_width =  30
+    map_height = 30
+    room_number = randint(3, 10)
+    dungeon_id:str
+    rooms: list[Room]
+
+    roads: list[Road]
     floor_level_matrix: MyMatrix
     loot_level_matrix: MyMatrix
     interactable_level_matrix: MyMatrix
-    dungeon_id:str
-    rooms: list[Room]
-    roads: list[Road]
+
+    passable: MyMatrix
+    los_blocking: MyMatrix
+    open_space: MyMatrix
+    
+
 
     def __init__(self):
         self.rooms = []
@@ -32,22 +39,21 @@ class DungeonGenerator(object):
     def generate(self):
         self.floor_level_matrix = MyMatrix(self.map_width, self.map_height)
         self.floor_level_matrix.fillMatrixWithZero()
-        self.loot_level_matrix = MyMatrix(self.map_width, self.map_height)
-        self.loot_level_matrix.fillMatrixWithZero()
-        self.interactable_level_matrix = MyMatrix(self.map_width, self.map_height)
-        self.interactable_level_matrix.fillMatrixWithZero()
+
+        self.passable = MyMatrix(self.map_width, self.map_height)
+        self.passable.fillMatrixWithZero()
+        self.los_blocking = MyMatrix(self.map_width, self.map_height)
+        self.los_blocking.fillMatrixWithZero()
+        self.open_space= MyMatrix(self.map_width, self.map_height)
+        self.open_space.fillMatrixWithTrue()
 
         for _ in range(0, self.room_number):
             self.digOneRoom()
         self.link_rooms()
 
+
         
     def digOneRoom(self)->None:
-        if self.floor_level_matrix is None:
-            raise Exception('floor_level_matrix not generate.')
-        if self.interactable_level_matrix is None:
-            raise Exception('interactable_level_matrix not generate.')
-
         times = 0
         while (True):
             room_width = randint(self.min_room_size, self.max_room_size)
@@ -68,10 +74,11 @@ class DungeonGenerator(object):
                 return
         self.rooms.append(room)
         # write_floor
-        self.write_matrix(self.floor_level_matrix, room.points, FLOOR.NORMAL)
+        self.write_matrix(self.passable, room.points, 1)
+        self.write_matrix(self.open_space, room.points, 0)
         # write_wall
-        self.write_matrix(self.floor_level_matrix, room.walls, WALL.NORMAL)
-
+        self.write_matrix(self.los_blocking, room.walls, 1)
+        self.write_matrix(self.open_space, room.walls, 0)
 
     @staticmethod
     def write_matrix(mtx: MyMatrix, points: list[Point], code: int):
@@ -181,20 +188,17 @@ class DungeonGenerator(object):
 
         # 把路画上
         road = Road(start, end, road_arr)
-        self.write_matrix(self.floor_level_matrix, road.passageway, FLOOR.NORMAL)
+        self.write_matrix(self.passable, road.passageway, 1)
+
         # 如果对路上有墙， 就把墙换成门
         for pt in road.passageway:
-            if self.floor_level_matrix[pt] == WALL.NORMAL:
-                self.floor_level_matrix[pt] = FLOOR.NORMAL
-                self.interactable_level_matrix[pt] = INTERACTABLE.DOOR;
+            if self.los_blocking[pt]:
+                self.los_blocking[pt] = 0
+                self.passable[pt] = 1
         # 把路边的墙画上
         road_wall = get_road_wall_points(road_arr) 
         self.roads.append(road)
-        self.write_matrix(self.floor_level_matrix, road_wall, WALL.NORMAL)
-
-        # 把门画上
-        self.write_matrix(self.floor_level_matrix, [start, end], FLOOR.NORMAL) # type:ignore
-        self.write_matrix(self.interactable_level_matrix, [start, end], INTERACTABLE.DOOR) #type: ignore
+        self.write_matrix(self.los_blocking, road_wall, 1)
 
         return
 
@@ -229,4 +233,5 @@ class DungeonGenerator(object):
 if __name__ == '__main__':
     gen = DungeonGenerator()
     gen.generate()
-    gen.save()
+    print(gen.open_space.output())
+    #gen.save()

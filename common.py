@@ -23,7 +23,10 @@ class MyMatrix(object):
         self.height = height
 
     def fillMatrixWithZero(self):
-        self.rawData = bytearray(self.width*self.height)
+        self.rawData = bytearray(b'\x00') * self.width * self.height
+
+    def fillMatrixWithTrue(self):
+        self.rawData = bytearray(b'\x01') * self.width * self.height
 
     def setMatrix(self, byte_array):
         self.rawData = bytearray(byte_array)
