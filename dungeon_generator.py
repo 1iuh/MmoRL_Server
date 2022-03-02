@@ -1,56 +1,61 @@
 #!/usr/bin/env python
-from common import Vector2, MyMatrix, Room, Point, Road
-from consts import FLOOR, WALL, INTERACTABLE, REDISKEYS
+from common import Vector2, MyMatrix, Vector2, Road
+from room import Room
+from consts import FLOOR, WALL, DOOR
+from math import copysign
 from random import randint
 import redis
 from uuid import uuid4
 
+import pickle
+
+
 redis_conn = redis.Redis(host='localhost', port=6379, db=0)
 
 class DungeonGenerator(object):
+
     max_room_size = 12
-    min_room_size = 5
-    map_width =  30
-    map_height = 30
-    room_number = randint(3, 10)
+    min_room_size = 6
+    map_width =  45
+    map_height = 40
+    room_number = 15
+
     dungeon_id:str
+
     rooms: list[Room]
+    passways: list
 
-    roads: list[Road]
-    floor_level_matrix: MyMatrix
-    loot_level_matrix: MyMatrix
-    interactable_level_matrix: MyMatrix
-
+    tiles: MyMatrix
     passable: MyMatrix
     los_blocking: MyMatrix
     open_space: MyMatrix
+    doors: MyMatrix
     
-
 
     def __init__(self):
         self.rooms = []
-        self.roads = []
+        self.passways = []
         self.dungeon_id = str(uuid4())
-        redis_key= 'currency_dungeon'
+        redis_key = 'currency_dungeon'
         redis_conn.hset(redis_key, 'dungeon_id', self.dungeon_id )
-        redis_conn.hset(redis_key, 'width', self.map_width )
-        redis_conn.hset(redis_key, 'height', self.map_height)
 
     def generate(self):
-        self.floor_level_matrix = MyMatrix(self.map_width, self.map_height)
-        self.floor_level_matrix.fillMatrixWithZero()
 
+        self.tiles  = MyMatrix(self.map_width, self.map_height)
+        self.tiles.fillMatrixWithZero()
         self.passable = MyMatrix(self.map_width, self.map_height)
         self.passable.fillMatrixWithZero()
         self.los_blocking = MyMatrix(self.map_width, self.map_height)
         self.los_blocking.fillMatrixWithZero()
         self.open_space= MyMatrix(self.map_width, self.map_height)
         self.open_space.fillMatrixWithTrue()
+        self.doors= MyMatrix(self.map_width, self.map_height)
+        self.doors.fillMatrixWithZero()
 
         for _ in range(0, self.room_number):
             self.digOneRoom()
-        self.link_rooms()
-
+        self.conncet_rooms()
+        self.printer()
 
         
     def digOneRoom(self)->None:
@@ -61,7 +66,7 @@ class DungeonGenerator(object):
             room_x = randint(0, self.map_width-room_width)
             room_y = randint(0, self.map_height-room_lenght)
 
-            room = Room(Point(room_x, room_y), room_width, room_lenght)
+            room = Room(Vector2(room_x, room_y), room_width, room_lenght)
             is_cover = False
             for _room in self.rooms:
                 if self.is_rooms_covered(_room, room):
@@ -70,7 +75,7 @@ class DungeonGenerator(object):
             if is_cover == False:
                 break
             times += 1
-            if (times>100):
+            if (times>100000):
                 return
         self.rooms.append(room)
         # write_floor
@@ -81,10 +86,33 @@ class DungeonGenerator(object):
         self.write_matrix(self.open_space, room.walls, 0)
 
     @staticmethod
-    def write_matrix(mtx: MyMatrix, points: list[Point], code: int):
+    def write_matrix(mtx: MyMatrix, points: list[Vector2], code: int):
         for pt in points:
             vect = Vector2(pt.x, pt.y)
             mtx[vect] = code
+
+    @staticmethod
+    def build_passway(p1:Vector2, p2:Vector2):
+        passway = []
+        dx = p1.x - p2.x
+        dy = p1.y - p2.y
+        
+        diffx = int(copysign(1, dx))
+        diffy = int(copysign(1, dy))
+
+        x = p1.x
+        y = p1.y
+        while True:
+            if dx != 0:
+                x -= diffx
+            elif dy != 0:
+                y -= diffy
+            else:
+                return passway
+
+            passway.append(Vector2(x, y))
+            dx = x - p2.x
+            dy = y - p2.y
 
     def is_rooms_covered(self, room1: Room , room2: Room):
         x1 = room1.anchor.x
@@ -101,137 +129,99 @@ class DungeonGenerator(object):
                 return True
         return False
 
-    def link_rooms(self):
-        self.sort_rooms()
+
+
+    def conncet_rooms(self):
+
         unlink_rooms = [] + self.rooms;
-        while len(unlink_rooms) > 1:
-            ur_room = unlink_rooms.pop();
-            self.link_room(ur_room, unlink_rooms);
+        linked_rooms = []
 
-    def link_room(self, cur_room: Room, rooms: list[Room]) -> None:
-        def get_road_points(start_point: Point, end_point: Point)-> list[Point]:
-            points: list[Point] = []
-            x = start_point.x
-            y = start_point.y
-            while True:
-                points.append(Point(x, y))
-                if x < end_point.x:
-                    x += 1
-                elif x > end_point.x:
-                    x -= 1
-                elif y < end_point.y:
-                    y += 1
-                elif y > end_point.y:
-                    y -= 1
-                else:
-                    break
-            return points
-
-        def get_road_wall_points(passageway: list[Point]) -> list[Point]:
-            points = []
-            for index  in range(0, len(passageway)):
-                pt = passageway[index]
-                npt = Point(pt.x, pt.y-1)
-                if self.floor_level_matrix[npt] == 0:
-                    points.append(npt)
-                npt = Point(pt.x, pt.y+1)
-                if self.floor_level_matrix[npt] == 0:
-                    points.append(npt)
-                npt = Point(pt.x-1, pt.y)
-                if self.floor_level_matrix[npt] == 0:
-                    points.append(npt)
-                npt = Point(pt.x+1, pt.y)
-                if self.floor_level_matrix[npt] == 0:
-                    points.append(npt)
-                npt = Point(pt.x+1, pt.y+1)
-                if self.floor_level_matrix[npt] == 0:
-                    points.append(npt)
-                npt = Point(pt.x-1, pt.y-1)
-                if self.floor_level_matrix[npt] == 0:
-                    points.append(npt)
-                npt = Point(pt.x-1, pt.y+1)
-                if self.floor_level_matrix[npt] == 0:
-                    points.append(npt)
-                npt = Point(pt.x+1, pt.y-1)
-                if self.floor_level_matrix[npt] == 0:
-                    points.append(npt)
-            return points
-
-        min_distance = 999
-        road_arr = []
-        start:Point
-        end: Point
-        angles1 = cur_room.angles
-        doors1 = cur_room.doors
-
-        angles2 = [] 
-        doors2 = []
-
-        for _room in rooms:
-            angles2 += _room.angles
-            doors2 += _room.doors
-
-        for p1_index in range(0, len(angles1)):
-            for p2_index in range(0, len(angles2)):
-                p1 = angles1[p1_index]
-                p2 = angles2[p2_index]
-                d1 = doors1[p1_index]
-                d2 = doors2[p2_index]
-                _road = get_road_points(p1, p2)
-                if not self.can_points_dig(_road):
+        for cur_room in unlink_rooms:
+            min_distance = 999999
+            neighbor:Room 
+            for room in self.rooms:
+                if room == cur_room:
                     continue
-                if len(_road) <= min_distance:
-                    min_distance = len(_road)
-                    road_arr = _road
-                    start = d1
-                    end = d2
+                if cur_room in room.neighbor:
+                    continue
+                distance = len(self.build_passway(cur_room.anchor, room.anchor))
+                if distance < min_distance:
+                    min_distance = distance
+                    neighbor = room
 
-        # 把路画上
-        road = Road(start, end, road_arr)
-        self.write_matrix(self.passable, road.passageway, 1)
+            neighbor.neighbor.append(cur_room)
+            cur_room.neighbor.append( neighbor)
+            linked_rooms.append((cur_room, neighbor))
 
-        # 如果对路上有墙， 就把墙换成门
-        for pt in road.passageway:
-            if self.los_blocking[pt]:
-                self.los_blocking[pt] = 0
-                self.passable[pt] = 1
-        # 把路边的墙画上
-        road_wall = get_road_wall_points(road_arr) 
-        self.roads.append(road)
-        self.write_matrix(self.los_blocking, road_wall, 1)
+        for r1, r2 in linked_rooms:
+            self.conncet_two_rooms(r1, r2)
 
-        return
 
-    def can_points_dig(self, road: list[Point])-> bool:
-        # 感觉任何时候都可以挖
-        return True
+    def conncet_two_rooms(self, r1: Room, r2: Room):
+        min_distance = 99999
+        min_path: list[Vector2] = []
 
-    def sort_rooms(self):
-        from functools import cmp_to_key
+        for p1 in r1.outer_floors:
+            for p2 in r2.outer_floors:
+                path = self.build_passway(p1, p2)
+                if len(path) < min_distance:
+                    min_distance = len(path)
+                    min_path = path
 
-        def room_compare(room1: Room, room2:Room):
-            return room1.anchor.x * room1.anchor.x + room1.anchor.y * room1.anchor.y - room2.anchor.x * room2.anchor.x - room2.anchor.y * room2.anchor.y
+        self.passways.append(min_path)
+        self.write_matrix(self.passable, min_path, 1)
+        self.write_matrix(self.open_space, min_path, 0)
+        for pt in min_path:
+            if self.los_blocking[pt] == 1:
+                self.los_blocking[pt]= 0
+                self.doors[pt] = 1
 
-        sorted(self.rooms, key=cmp_to_key(room_compare))
+    def printer(self):
+
+        # 画地板
+        index = 0
+        for n in self.passable.rawData:
+            if n == 1:
+                self.tiles.rawData[index] = FLOOR.NORMAL
+            index += 1
+        # 画房间的墙
+        for rm in self.rooms:
+            # 上
+            for p in rm.top_walls:
+                self.tiles[p] = WALL.top
+            # 下
+            for p in rm.bottom_walls:
+                self.tiles[p] = WALL.bottom
+            # 左
+            for p in rm.left_walls:
+                self.tiles[p] = WALL.left
+            # 右
+            for p in rm.right_walls:
+                self.tiles[p] = WALL.right
+            # 左上角
+            self.tiles[rm.top_left_angle] = WALL.top_left_angle
+            # 右上角
+            self.tiles[rm.top_right_angle] = WALL.top_right_angle
+            # 左下角
+            self.tiles[rm.bottom_left_angle] = WALL.bottom_left_angle
+            # 右下角
+            self.tiles[rm.bottom_right_angle] = WALL.bottom_right_angle
+
+        # 门
+        index = 0
+        for n in self.doors.rawData:
+            if n == 1:
+                self.tiles.rawData[index] = DOOR.opened
+            index += 1
 
     def save(self):
-        floor_redis_key = REDISKEYS.FLOORLEVEL + self.dungeon_id
-        loot_redis_key = REDISKEYS.LOOTLEVEL + self.dungeon_id
-        interactable_redis_key= REDISKEYS.INTERACTABLELEVEL + self.dungeon_id
-        room_redis_key= REDISKEYS.ROOMS + self.dungeon_id
-
-        redis_conn.set(floor_redis_key, self.floor_level_matrix.toBytes())
-        redis_conn.set(loot_redis_key, self.loot_level_matrix.toBytes())
-        redis_conn.set(interactable_redis_key, self.interactable_level_matrix.toBytes())
-        redis_conn.set(interactable_redis_key, self.interactable_level_matrix.toBytes())
-        redis_conn.set(interactable_redis_key, self.interactable_level_matrix.toBytes())
-        for room in self.rooms:
-            redis_conn.lpush(room_redis_key, str(room))
-
-
+        with open('tmp/dungeon_dumps_' + self.dungeon_id, 'wb') as fp:
+            fp.write(pickle.dumps(self))
+        
 
 if __name__ == '__main__':
     gen = DungeonGenerator()
     gen.generate()
-    print(gen.open_space.output())
-    #gen.save()
+    # print(gen.passable.output())
+    # print(gen.passable.output())
+    gen.save()

@@ -1,50 +1,36 @@
 #!/usr/bin/env python
 
 from random import randint, choice
-from common import Vector2, MyMatrix, Room
+from common import Vector2, MyMatrix
 from consts import REDISKEYS, INSTRUCT, WALL, INTERACTABLE
 from actions import Action
 from move_objects import Player, Door, Enemy, MoveObject
 from ray_casting import ray_casting
+import pickle
 import msgpack 
 import logging
 import redis
 import time
+from dungeon_generator import DungeonGenerator
+
+logger = logging.getLogger("GameManager")
 
 redis_conn = redis.Redis(host='localhost', port=6379, db=0)
 redis_conn.delete(REDISKEYS.USERS)
 
 redis_key = 'currency_dungeon'
 
-dungeon_width:int
-dungeon_height:int
-
 dungeon_id = redis_conn.hget(redis_key, 'dungeon_id')
 if dungeon_id is None:
     raise Exception()
 dungeon_id = dungeon_id.decode('utf8')
-dungeon_width = int(redis_conn.hget(redis_key, 'width').decode('utf8')) # type: ignore
-dungeon_height = int(redis_conn.hget(redis_key, 'height').decode('utf8')) # type: ignore
 
-logging.basicConfig(
-    format="%(asctime)s %(message)s",
-    level=logging.INFO,
-)
+dungeon: DungeonGenerator
+with open('tmp/dungeon_dumps_'+dungeon_id, 'rb') as fp:
+    dungeon = pickle.loads(fp.read())
 
-logger = logging.getLogger("GameManager")
-
-
-floor = MyMatrix(dungeon_width, dungeon_height)
-floor.setMatrix(redis_conn.get(REDISKEYS.FLOORLEVEL + dungeon_id))
-loot = MyMatrix(dungeon_width, dungeon_height)
-loot.setMatrix(redis_conn.get(REDISKEYS.LOOTLEVEL + dungeon_id))
-interactable = MyMatrix(dungeon_width, dungeon_height)
-interactable.setMatrix(redis_conn.get(REDISKEYS.INTERACTABLELEVEL + dungeon_id))
-
-room_redis_key = REDISKEYS.ROOMS + dungeon_id
-rooms = []
-for room_str in redis_conn.lrange(room_redis_key, 0, -1):
-    rooms.append(Room.fromStr(room_str.decode('utf-8')))
+dungeon_width = dungeon.map_width
+dungeon_height = dungeon.map_height
 
 messages = []
 players = {}
@@ -101,7 +87,7 @@ class ObjectStore(object):
 
 
     def has_wall(self, position:Vector2):
-        if floor[position] == WALL.NORMAL: 
+        if dungeon.los_blocking[position] == 1: 
             return True
         return False
         
@@ -111,24 +97,22 @@ objStore = ObjectStore()
 class GameManager(object):
 
     def __init__(self):
-        for pt, v in interactable:
-            if v == INTERACTABLE.DOOR:
-                Door(pt, objStore)
+        pass
             
 
     def spawnEnemy(self):
         for _ in range(0, randint(1, 3)):
-            pt = choice(choice(rooms).floors)
+            pt = choice(choice(dungeon.rooms).floors)
             if objStore.get_by_position(pt) is None:
                 Enemy(pt, objStore)
 
         
     def spawnPlayer(self, username):
-        pt = choice(choice(rooms).floors)
+        pt = choice(choice(dungeon.rooms).floors)
         player = Player(pt, objStore, username)
         player.inti_explored_floor(dungeon_width, dungeon_height)
-        player.vision = ray_casting(floor, player.position, player.vision_range) 
-        player.explored_floor.setMatrix((floor.toInt() & player.vision.toInt()).to_bytes(dungeon_height*dungeon_width, 'big')) 
+        player.vision = ray_casting(dungeon.los_blocking, player.position, player.vision_range) 
+        player.explored_floor.setMatrix((dungeon.tiles.toInt() & player.vision.toInt()).to_bytes(dungeon_height*dungeon_width, 'big')) 
         players[username] = player
         return
         
@@ -178,7 +162,7 @@ class GameManager(object):
                 destroy_list.append(obj)
             obj.energy += 100
             obj.excuteAction()
-            obj.vision = ray_casting(floor, obj.position, obj.vision_range)
+            obj.vision = ray_casting(dungeon.los_blocking, obj.position, obj.vision_range)
 
         # 给客户端推消息
         for username, player in online_player.items():
@@ -192,7 +176,7 @@ class GameManager(object):
                 redis_conn.publish(redis_key, payload) #type: ignore 
                 return
 
-            player.explored_floor.setMatrix((player.explored_floor.toInt() | (floor.toInt() & player.vision.toInt())).to_bytes(dungeon_height*dungeon_width, 'big')) 
+            player.explored_floor.setMatrix((player.explored_floor.toInt() | (dungeon.tiles.toInt() & player.vision.toInt())).to_bytes(dungeon_height*dungeon_width, 'big')) 
             payload = msgpack.packb(dict(
                 messageType='UPDATE',
                 data = {

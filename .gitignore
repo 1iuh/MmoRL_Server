@@ -3,3 +3,4 @@ tags
 *.swp
 __pycache__
 .DS_Store
+tmp

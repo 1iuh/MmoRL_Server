@@ -16,7 +16,7 @@ def ray_casting(blocks: MyMatrix, origin:Vector2, range_limit: int):
         vision[Vector2(x, y)] = 0xff
 
     def is_block(vect: Vector2)-> bool:
-        if blocks[vect] in (WALL.NORMAL, INTERACTABLE.DOOR):
+        if blocks[vect] == 1: 
             return True
         return False
 
@@ -77,6 +77,47 @@ def ray_casting(blocks: MyMatrix, origin:Vector2, range_limit: int):
 
     return vision
 
+
+def trace_line(origin, x, y):
+    # Bresenham's line algorithm
+    result = []
+
+    
+    xDiff = x - origin.x
+    yDiff = y - origin.y
+    xy_diff = origin.x - origin.y
+    xLen = abs(xDiff)
+    yLen = abs(yDiff)
+    xInc = int(copysign(1, xDiff))
+    yInc = int(copysign(1, yDiff))
+    steep = 0
+    if xLen < yLen:
+        steep = 1
+        xLen, yLen = yLen, xLen
+        xInc, yInc = yInc, xInc
+
+    errorInc = yLen*2
+    error = -xLen
+    errorReset = xLen*2
+
+    x0 = origin.x
+    y0 = origin.y
+
+    for _ in range(1, xLen+1):
+        error += errorInc
+        x0 += xInc
+        if error > 0:
+            error -= errorReset
+            y0 += yInc
+
+        x, y = x0, y0
+        if steep:
+            x, y = y+xy_diff, x-xy_diff
+        if x < 0 or y < 0:
+            break
+        result.append(Vector2(x,y))
+        
+    return result
 
 
 
