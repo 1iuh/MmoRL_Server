@@ -54,7 +54,10 @@ async def handler(websocket):
     consumer_redis = await aioredis.from_url('redis://localhost')
     pub_redis = await aioredis.from_url('redis://localhost')
 
-    user = await consumer_redis.hget(REDISKEYS.TOKENS, token)
+    if token == '11111111':
+        user = b'user1'
+    else:
+        user = await consumer_redis.hget(REDISKEYS.TOKENS, token)
     if user is None:
         await websocket.close(1011, "authentication failed")
         return

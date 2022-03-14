@@ -129,7 +129,7 @@ class GameManager(object):
                 layers=dict(
                     floor=player.explored_floor.rawData, # type: ignore
                 ),
-                #vision=player.vision,
+                vision=player.vision.rawData,
                 mapWidth=dungeon_width, # type: ignore
                 mapLength=dungeon_height, # type: ignore
                 playerUID=player.uid,
@@ -180,7 +180,7 @@ class GameManager(object):
             payload = msgpack.packb(dict(
                 messageType='UPDATE',
                 data = {
-                    #"vision": player.vision,
+                    "vision": player.vision.rawData,
                     "floor": player.explored_floor.rawData, # type: ignore
                     "moveObjects": objStore.dumps(),
                     "messages": "",
@@ -220,7 +220,9 @@ def command_controller(gm: GameManager, command_bytes: bytes):
 if __name__ == '__main__':
     gm = GameManager()
 
-    gm.spawnEnemy()
+    # gm.spawnEnemy()
+    gm.spawnPlayer('user1')
+    print('game server start')
     while True:
         command = redis_conn.rpop(REDISKEYS.CLIENTCOMMANDS)
         if command:

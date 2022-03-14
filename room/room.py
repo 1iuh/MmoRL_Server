@@ -1,5 +1,5 @@
 from common import Vector2
-from random import randint
+from random import randint, shuffle
 
 class Room(object):
     anchor: Vector2
@@ -38,6 +38,7 @@ class Room(object):
         for x in [2, self.width-2]:
             for y in [2, self.height-2]:
                     pts.append(Vector2(x+self.anchor.x, y+self.anchor.y))
+        shuffle(pts)
         return pts
 
     @property

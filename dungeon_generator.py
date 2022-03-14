@@ -165,6 +165,13 @@ class DungeonGenerator(object):
             for p2 in r2.outer_floors:
                 path = self.build_passway(p1, p2)
                 if len(path) < min_distance:
+                    # 如果路径上的墙超过了2片，则放弃
+                    wall_num = 0
+                    for pt in path:
+                        if self.los_blocking[pt] == 1:
+                            wall_num += 1
+                    if wall_num > 2:
+                        continue
                     min_distance = len(path)
                     min_path = path
 
@@ -207,6 +214,60 @@ class DungeonGenerator(object):
             # 右下角
             self.tiles[rm.bottom_right_angle] = WALL.bottom_right_angle
 
+        # 画走廊的墙
+        for pw in self.passways:
+            for pt in pw:
+                # 上
+                cpt = Vector2(pt.x, pt.y+1)
+                if self.open_space[cpt] == 1:
+                    self.tiles[cpt] = WALL.top
+                    self.los_blocking[cpt] = 1
+                    self.open_space[cpt] = 0
+                # 下
+                cpt = Vector2(pt.x, pt.y-1)
+                if self.open_space[cpt] == 1:
+                    self.tiles[cpt] = WALL.bottom
+                    self.los_blocking[cpt] = 1
+                    self.open_space[cpt] = 0
+                # 左
+                cpt = Vector2(pt.x-1, pt.y)
+                if self.open_space[cpt] == 1:
+                    self.tiles[cpt] = WALL.left
+                    self.los_blocking[cpt] = 1
+                    self.open_space[cpt] = 0
+                # 右
+                cpt = Vector2(pt.x+1, pt.y)
+                if self.open_space[cpt] == 1:
+                    self.tiles[cpt] = WALL.right
+                    self.los_blocking[cpt] = 1
+                    self.open_space[cpt] = 0
+
+            for pt in pw:
+                # 左上
+                cpt = Vector2(pt.x-1, pt.y+1)
+                if self.open_space[cpt] == 1:
+                    self.tiles[cpt] = WALL.top_left_angle
+                    self.los_blocking[cpt] = 1
+                    self.open_space[cpt] = 0
+                # 右上
+                cpt = Vector2(pt.x+1, pt.y+1)
+                if self.open_space[cpt] == 1:
+                    self.tiles[cpt] = WALL.top_right_angle
+                    self.los_blocking[cpt] = 1
+                    self.open_space[cpt] = 0
+                # 左下
+                cpt = Vector2(pt.x-1, pt.y-1)
+                if self.open_space[cpt] == 1:
+                    self.tiles[cpt] = WALL.bottom_left_angle
+                    self.los_blocking[cpt] = 1
+                    self.open_space[cpt] = 0
+                # 右下
+                cpt = Vector2(pt.x+1, pt.y-1)
+                if self.open_space[cpt] == 1:
+                    self.tiles[cpt] = WALL.bottom_right_angle
+                    self.los_blocking[cpt] = 1
+                    self.open_space[cpt] = 0
+
         # 门
         index = 0
         for n in self.doors.rawData:
@@ -217,6 +278,7 @@ class DungeonGenerator(object):
     def save(self):
         with open('tmp/dungeon_dumps_' + self.dungeon_id, 'wb') as fp:
             fp.write(pickle.dumps(self))
+            print(f'save success: {self.dungeon_id}')
         
 
 if __name__ == '__main__':

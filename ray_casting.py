@@ -64,16 +64,20 @@ def ray_casting(blocks: MyMatrix, origin:Vector2, range_limit: int):
         return
 
     set_vision(origin.x, origin.y)
+
+    for ix in range(0, range_limit*2):
+        for iy in range(0, range_limit*2):
+            trace_line(origin, origin.x - range_limit + ix, origin.y - range_limit + iy)
     # top and bottom
-    for i in range(0, range_limit*2):
-        trace_line(origin, origin.x - range_limit + i, origin.y + range_limit)
-    for i in range(0, range_limit*2):
-        trace_line(origin, origin.x + range_limit - i, origin.y - range_limit)
+    # for i in range(0, range_limit*2):
+    #     trace_line(origin, origin.x - range_limit + i, origin.y + range_limit)
+    # for i in range(0, range_limit*2):
+    #     trace_line(origin, origin.x + range_limit - i, origin.y - range_limit)
     # right and left
-    for i in range(0, range_limit*2):
-        trace_line(origin, origin.x + range_limit, origin.y + range_limit - i)
-    for i in range(0, range_limit*2):
-        trace_line(origin, origin.x - range_limit, origin.y - range_limit + i)
+    # for i in range(0, range_limit*2):
+    #     trace_line(origin, origin.x + range_limit, origin.y + range_limit - i)
+    # for i in range(0, range_limit*2):
+    #     trace_line(origin, origin.x - range_limit, origin.y - range_limit + i)
 
     return vision
 
