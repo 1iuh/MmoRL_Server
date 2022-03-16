@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-from common import Vector2, MyMatrix, Vector2, Road
-from room import Room
+from utils import Vector2, MyMatrix
+from rooms.room import Room
 from consts import FLOOR, WALL, DOOR
 from math import copysign
 from random import randint
 import redis
 from uuid import uuid4
+from typing import Optional
 
 import pickle
 
@@ -138,7 +139,7 @@ class DungeonGenerator(object):
 
         for cur_room in unlink_rooms:
             min_distance = 999999
-            neighbor:Room 
+            neighbor:Optional[Room] = None
             for room in self.rooms:
                 if room == cur_room:
                     continue
@@ -149,9 +150,10 @@ class DungeonGenerator(object):
                     min_distance = distance
                     neighbor = room
 
-            neighbor.neighbor.append(cur_room)
-            cur_room.neighbor.append( neighbor)
-            linked_rooms.append((cur_room, neighbor))
+            if neighbor:
+                neighbor.neighbor.append(cur_room)
+                cur_room.neighbor.append( neighbor)
+                linked_rooms.append((cur_room, neighbor))
 
         for r1, r2 in linked_rooms:
             self.conncet_two_rooms(r1, r2)
@@ -180,7 +182,6 @@ class DungeonGenerator(object):
         self.write_matrix(self.open_space, min_path, 0)
         for pt in min_path:
             if self.los_blocking[pt] == 1:
-                self.los_blocking[pt]= 0
                 self.doors[pt] = 1
 
     def printer(self):

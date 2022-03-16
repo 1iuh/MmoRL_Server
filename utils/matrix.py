@@ -1,20 +1,4 @@
-class Vector2(object):
-    x: int
-    y: int
-
-    def __init__ (self, x:int, y:int):
-        self.x = x
-        self.y = y
-
-    def copy(self):
-        return Vector2(self.x, self.y)
-
-    def __repr__(self):
-        return '(' + str(self.x) + ',' + str(self.y) +')'
-
-    def __eq__(self, other):
-        return self.x == other.x and self.y == other.y
-
+from utils.vector import Vector2
 
 class MyMatrix(object):
     rawData: bytearray
@@ -82,19 +66,3 @@ class MyMatrix(object):
 
     def toInt(self):
         return int.from_bytes(self.rawData, 'big')
-
-
-class Road(object):
-    start: Vector2
-    end: Vector2
-    passageway: list[Vector2]
-
-    def __init__(self, start, end, passageway):
-        self.start = start
-        self.end = end
-        self.passageway = passageway
-
-
-def command_generater(user:str, inst:str):
-    return '|'.join([user, inst])
-

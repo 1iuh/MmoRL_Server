@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 from random import randint, choice
-from common import Vector2, MyMatrix
-from consts import REDISKEYS, INSTRUCT, WALL, INTERACTABLE
-from actions import Action
-from move_objects import Player, Door, Enemy, MoveObject
+from utils import Vector2, MyMatrix
+from consts import REDISKEYS, INSTRUCT, ACTOR
+from actions import action_factory, Action
+from actors import Player, Zombie, Actor
 from ray_casting import ray_casting
 import pickle
 import msgpack 
@@ -51,7 +51,7 @@ class ObjectStore(object):
     def get_by_position(self, position:Vector2):
         return self.position_dict.get(self.get_position_key(position))
 
-    def __getitem__(self, uid)->MoveObject:
+    def __getitem__(self, uid)->Actor:
         return self.uid_dict[uid]
 
     def __setitem__(self, uid, obj):
@@ -80,7 +80,6 @@ class ObjectStore(object):
                     "y": v.position.y,
                     "hp": v.hp,
                     "maxHp": v.max_hp,
-                    "energy": v.energy,
                     "sign": v.sign
                 })
         return res
@@ -104,7 +103,7 @@ class GameManager(object):
         for _ in range(0, randint(1, 3)):
             pt = choice(choice(dungeon.rooms).floors)
             if objStore.get_by_position(pt) is None:
-                Enemy(pt, objStore)
+                Zombie(pt, objStore)
 
         
     def spawnPlayer(self, username):
@@ -160,7 +159,6 @@ class GameManager(object):
         for _, obj in objStore.uid_dict.items():
             if obj.hp <= 0:
                 destroy_list.append(obj)
-            obj.energy += 100
             obj.excuteAction()
             obj.vision = ray_casting(dungeon.los_blocking, obj.position, obj.vision_range)
 
@@ -184,7 +182,6 @@ class GameManager(object):
                     "floor": player.explored_floor.rawData, # type: ignore
                     "moveObjects": objStore.dumps(),
                     "messages": "",
-
                 }
             ))
             redis_conn.publish(redis_key, payload) #type: ignore 

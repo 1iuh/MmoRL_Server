@@ -21,9 +21,9 @@ class DOOR(object):
     opened: Final = 51
 
 
-class INTERACTABLE(object):
+class ACTOR(object):
     PLAYER: Final = 2
-    ENEMY: Final = 5
+    zombie: Final = 5
     DOOR: Final = 4
     
 class REDISKEYS(object):

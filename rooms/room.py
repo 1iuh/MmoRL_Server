@@ -1,5 +1,15 @@
-from common import Vector2
-from random import randint, shuffle
+from utils import Vector2
+from random import shuffle
+
+class Road(object):
+    start: Vector2
+    end: Vector2
+    passageway: list[Vector2]
+
+    def __init__(self, start, end, passageway):
+        self.start = start
+        self.end = end
+        self.passageway = passageway
 
 class Room(object):
     anchor: Vector2
