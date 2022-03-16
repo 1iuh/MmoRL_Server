@@ -1,7 +1,7 @@
 from aiohttp import web
 import aioredis
 from consts import REDISKEYS, INSTRUCT
-from common import command_generater
+from utils import command_generater
 from uuid import uuid4
 
 async def create_user(redis, username):

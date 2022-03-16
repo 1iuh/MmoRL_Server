@@ -1,8 +1,5 @@
-from common import Vector2, MyMatrix
-from consts import WALL, INTERACTABLE
+from utils import Vector2, MyMatrix
 from math import copysign
-from random import randint
-from time import time
 
 
 def ray_casting(blocks: MyMatrix, origin:Vector2, range_limit: int):
@@ -126,7 +123,7 @@ def trace_line(origin, x, y):
 
 
 if __name__ == '__main__':
-    from common import MyMatrix
+    from utils import MyMatrix
 
     dungeon = MyMatrix(20, 20)
     dungeon.fillMatrixWithZero()

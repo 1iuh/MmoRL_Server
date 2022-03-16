@@ -8,7 +8,7 @@ import aioredis
 import logging
 import async_timeout
 from consts import REDISKEYS, INSTRUCT
-from common import command_generater
+from utils import command_generater
 
 
 logging.basicConfig(

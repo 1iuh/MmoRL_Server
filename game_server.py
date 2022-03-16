@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 from random import randint, choice
-from utils import Vector2, MyMatrix
-from consts import REDISKEYS, INSTRUCT, ACTOR
+from utils import ray_casting
+from consts import REDISKEYS, INSTRUCT
 from actions import action_factory, Action
-from actors import Player, Zombie, Actor
-from ray_casting import ray_casting
+from actors import Player, Zombie
+from gods import Nvwa
 import pickle
 import msgpack 
 import logging
@@ -36,62 +36,9 @@ messages = []
 players = {}
 online_player = {}
 
-class ObjectStore(object):
-    uid_dict: dict
-    position_dict: dict
-
-    def __init__(self):
-        self.uid_dict = dict()
-        self.position_dict = dict()
-            
-    @staticmethod
-    def get_position_key(position:Vector2):
-        return "_".join([str(position.x), str(position.y)])
-
-    def get_by_position(self, position:Vector2):
-        return self.position_dict.get(self.get_position_key(position))
-
-    def __getitem__(self, uid)->Actor:
-        return self.uid_dict[uid]
-
-    def __setitem__(self, uid, obj):
-        self.uid_dict[uid] = obj
-        self.position_dict[self.get_position_key(obj.position)] = obj
-
-    def move(self, obj, position):
-        self.position_dict[self.get_position_key(obj.position)] = None
-        obj.position = position
-        self.position_dict[self.get_position_key(obj.position)] = obj
-
-    def delete(self, uid):
-        obj = self.uid_dict[uid]
-        if obj is None:
-            return
-        del self.position_dict[self.get_position_key(obj.position)]
-        del self.uid_dict[uid]
-
-    def dumps(self):
-        res = []
-        for _,v in self.uid_dict.items():
-            if v.hp > 0:
-                res.append({
-                    "uid": v.uid,
-                    "x": v.position.x,
-                    "y": v.position.y,
-                    "hp": v.hp,
-                    "maxHp": v.max_hp,
-                    "sign": v.sign
-                })
-        return res
-
-
-    def has_wall(self, position:Vector2):
-        if dungeon.los_blocking[position] == 1: 
-            return True
-        return False
         
 
-objStore = ObjectStore()
+nvwa = Nvwa(dungeon)
 
 class GameManager(object):
 
@@ -102,13 +49,13 @@ class GameManager(object):
     def spawnEnemy(self):
         for _ in range(0, randint(1, 3)):
             pt = choice(choice(dungeon.rooms).floors)
-            if objStore.get_by_position(pt) is None:
-                Zombie(pt, objStore)
+            if nvwa.get_by_position(pt) is None:
+                Zombie(pt, nvwa)
 
         
     def spawnPlayer(self, username):
         pt = choice(choice(dungeon.rooms).floors)
-        player = Player(pt, objStore, username)
+        player = Player(pt, nvwa, username)
         player.inti_explored_floor(dungeon_width, dungeon_height)
         player.vision = ray_casting(dungeon.los_blocking, player.position, player.vision_range) 
         player.explored_floor.setMatrix((dungeon.tiles.toInt() & player.vision.toInt()).to_bytes(dungeon_height*dungeon_width, 'big')) 
@@ -136,7 +83,7 @@ class GameManager(object):
                 maxHp=player.max_hp,
                 hp=player.hp,
                 username=user,
-                moveObjects = objStore.dumps()
+                moveObjects = nvwa.dumps()
             )
         ))
         redis_key = REDISKEYS.CHANNEL + user
@@ -146,17 +93,17 @@ class GameManager(object):
         player = players.get(username)
         if player is None:
             return
-        player.action = Action.factory(instruct, *args)
+        player.action = action_factory(instruct, *args)
         
     def setAction(self, uid:str, instruct:str, *args):
-        obj = objStore[uid]
+        obj = nvwa[uid]
         obj.action = Action.factory(instruct, *args) # type:ignore
 
     def nextTurn(self):
 
         destroy_list = []
         # 执行
-        for _, obj in objStore.uid_dict.items():
+        for _, obj in nvwa.uid_dict.items():
             if obj.hp <= 0:
                 destroy_list.append(obj)
             obj.excuteAction()
@@ -180,7 +127,7 @@ class GameManager(object):
                 data = {
                     "vision": player.vision.rawData,
                     "floor": player.explored_floor.rawData, # type: ignore
-                    "moveObjects": objStore.dumps(),
+                    "moveObjects": nvwa.dumps(),
                     "messages": "",
                 }
             ))
@@ -189,7 +136,7 @@ class GameManager(object):
         # 销毁对象
         while len(destroy_list) > 0:
             obj = destroy_list.pop()
-            objStore.delete(obj.uid)
+            nvwa.delete(obj.uid)
 
     def playerDisconnect(self, user):
         logger.info(f'{user} 断开链接')

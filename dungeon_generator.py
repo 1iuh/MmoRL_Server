@@ -273,7 +273,7 @@ class DungeonGenerator(object):
         index = 0
         for n in self.doors.rawData:
             if n == 1:
-                self.tiles.rawData[index] = DOOR.opened
+                self.tiles.rawData[index] = DOOR.closed
             index += 1
 
     def save(self):

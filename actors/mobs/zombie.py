@@ -1,7 +1,7 @@
 from actors.actor import Actor
-from actions import Move
 from consts import ACTOR
-from random import choice
+# from random import choice
+# from actions import Move
 
 
 class Zombie(Actor):
@@ -12,6 +12,6 @@ class Zombie(Actor):
     tile_code = ACTOR.zombie
 
     def think(self):
-        self.action = Move(choice(["UP","DOWN","LEFT","RIGHT"]))
+        # self.action = Move(choice(["UP","DOWN","LEFT","RIGHT"]))
         return
 
