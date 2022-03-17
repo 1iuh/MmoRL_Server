@@ -16,10 +16,10 @@ class Player(Actor):
     messages: list[str]
 
 
-    def __init__(self, vender, objStore, username):
+    def __init__(self, username):
         self.username = username
         self.messages = []
-        super().__init__(vender, objStore)
+        super().__init__()
 
     def inti_explored_floor(self, map_width, map_length):
         self.explored_floor = MyMatrix(map_width, map_length)

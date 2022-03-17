@@ -23,15 +23,14 @@ class Actor(metaclass=ABCMeta):
     tile_code: int
     vision: MyMatrix
     vision_range = 5
+    nvwa: object
+
 
     is_player = False
 
-    def __init__(self, position,  objStore):
-        self.position = position
+    def __init__(self):
         self.uid = uuid4().int & (1<<64)-1
-        objStore[self.uid] = self
         self.hp = self.max_hp
-        self.objStore = objStore
 
     def excuteAction(self):
 
@@ -39,11 +38,10 @@ class Actor(metaclass=ABCMeta):
             self.think()
         if self.action is None:
             return
-        self.action.excute(self, self.objStore)
+        self.action.excute(self, self.nvwa)
 
     def destroy(self):
         logger.info(self.__class__.__name__ + ' destroy!')
-        # messages.append(f'「{self.name}」被摧毁了。')
 
     def think(self):
         return

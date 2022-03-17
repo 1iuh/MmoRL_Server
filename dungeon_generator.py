@@ -183,6 +183,7 @@ class DungeonGenerator(object):
         for pt in min_path:
             if self.los_blocking[pt] == 1:
                 self.doors[pt] = 1
+                self.passable[pt] = 0
 
     def printer(self):
 

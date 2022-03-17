@@ -1,8 +1,10 @@
-
-from utils import Vector2
-from actors import Actor
+from utils import Vector2, ray_casting, MyMatrix
+from actors import Actor, Player
 from dungeon_generator import DungeonGenerator
 from consts import DOOR
+
+import logging
+logger = logging.getLogger("Nvwa")
 
 class Nvwa(object):
     uid_dict: dict
@@ -28,10 +30,11 @@ class Nvwa(object):
         self.uid_dict[uid] = obj
         self.position_dict[self.get_position_key(obj.position)] = obj
 
-    def move(self, obj, position):
-        self.position_dict[self.get_position_key(obj.position)] = None
-        obj.position = position
-        self.position_dict[self.get_position_key(obj.position)] = obj
+    def move(self, actor, position):
+        self.position_dict[self.get_position_key(actor.position)] = None
+        actor.position = position
+        self.position_dict[self.get_position_key(actor.position)] = actor
+
 
     def delete(self, uid):
         obj = self.uid_dict[uid]
@@ -50,7 +53,21 @@ class Nvwa(object):
                     "y": v.position.y,
                     "hp": v.hp,
                     "maxHp": v.max_hp,
-                    "sign": v.tile_code
+                    "tile_code": v.tile_code
+                })
+        return res
+
+    def dump_by_vision(self, vision:MyMatrix):
+        res = []
+        for _,v in self.uid_dict.items():
+            if vision[v.position] == 255:
+                res.append({
+                    "uid": v.uid,
+                    "x": v.position.x,
+                    "y": v.position.y,
+                    "hp": v.hp,
+                    "maxHp": v.max_hp,
+                    "tile_code": v.tile_code
                 })
         return res
 
@@ -61,15 +78,38 @@ class Nvwa(object):
         return False
 
     def has_door(self, position:Vector2):
+        if self.dungeon.passable[position] == 1:
+            return False
         if self.dungeon.doors[position] == 1: 
             return True
         return False
 
     def open_door(self, position: Vector2):
         if self.dungeon.doors[position] == 1: 
-            self.dungeon.doors[position] = 0
             self.dungeon.los_blocking[position] = 0
             self.dungeon.passable[position] = 1
             self.dungeon.tiles[position] = DOOR.opened
 
-        
+    def spawn_actor(self, actor:Actor, position:Vector2):
+        if self.get_by_position(position) is not None:
+            logger.warning(f'{str(position)} already has something')
+            return
+        actor.position = position
+        actor.nvwa = self
+        actor.vision = ray_casting(self.dungeon.los_blocking, actor.position, actor.vision_range) 
+        self.uid_dict[actor.uid] = actor
+        self.position_dict[self.get_position_key(actor.position)] = actor
+        if isinstance(actor, Player):
+            dungeon_width = self.dungeon.map_width
+            dungeon_height = self.dungeon.map_height
+            actor.inti_explored_floor(dungeon_width, dungeon_height)
+            actor.explored_floor.setMatrix((self.dungeon.tiles.toInt() & actor.vision.toInt()).to_bytes(dungeon_height*dungeon_width, 'big')) 
+
+    def update_actor(self, actor:Actor):
+        actor.vision = ray_casting(self.dungeon.los_blocking, actor.position, actor.vision_range) 
+        if isinstance(actor, Player):
+            dungeon_width = self.dungeon.map_width
+            dungeon_height = self.dungeon.map_height
+            actor.explored_floor.setMatrix(
+                (actor.explored_floor.toInt() | (self.dungeon.tiles.toInt() & actor.vision.toInt())
+                 ).to_bytes(dungeon_height*dungeon_width, 'big'))

@@ -1,18 +1,17 @@
 #!/usr/bin/env python
 
 from random import randint, choice
-from utils import ray_casting
 from consts import REDISKEYS, INSTRUCT
 from actions import action_factory, Action
 from actors import Player, Zombie
 from gods import Nvwa
 import pickle
 import msgpack 
-import logging
 import redis
 import time
 from dungeon_generator import DungeonGenerator
 
+import logging
 logger = logging.getLogger("GameManager")
 
 redis_conn = redis.Redis(host='localhost', port=6379, db=0)
@@ -47,18 +46,16 @@ class GameManager(object):
             
 
     def spawnEnemy(self):
-        for _ in range(0, randint(1, 3)):
+        for _ in range(0, randint(20, 50)):
             pt = choice(choice(dungeon.rooms).floors)
             if nvwa.get_by_position(pt) is None:
-                Zombie(pt, nvwa)
+                nvwa.spawn_actor(Zombie(), pt)
 
         
     def spawnPlayer(self, username):
         pt = choice(choice(dungeon.rooms).floors)
-        player = Player(pt, nvwa, username)
-        player.inti_explored_floor(dungeon_width, dungeon_height)
-        player.vision = ray_casting(dungeon.los_blocking, player.position, player.vision_range) 
-        player.explored_floor.setMatrix((dungeon.tiles.toInt() & player.vision.toInt()).to_bytes(dungeon_height*dungeon_width, 'big')) 
+        player = Player(username)
+        nvwa.spawn_actor(player, pt)
         players[username] = player
         return
         
@@ -68,6 +65,7 @@ class GameManager(object):
         if player is None:
             return
         online_player[user]= player;
+
 
         payload = msgpack.packb(dict(
             messageType='INIT',
@@ -83,7 +81,7 @@ class GameManager(object):
                 maxHp=player.max_hp,
                 hp=player.hp,
                 username=user,
-                moveObjects = nvwa.dumps()
+                actors = nvwa.dump_by_vision(player.vision)
             )
         ))
         redis_key = REDISKEYS.CHANNEL + user
@@ -100,18 +98,12 @@ class GameManager(object):
         obj.action = Action.factory(instruct, *args) # type:ignore
 
     def nextTurn(self):
-
-        destroy_list = []
         # 执行
         for _, obj in nvwa.uid_dict.items():
-            if obj.hp <= 0:
-                destroy_list.append(obj)
             obj.excuteAction()
-            obj.vision = ray_casting(dungeon.los_blocking, obj.position, obj.vision_range)
 
         # 给客户端推消息
         for username, player in online_player.items():
-
             redis_key = REDISKEYS.CHANNEL + username
 
             if player.hp <= 0:
@@ -120,23 +112,16 @@ class GameManager(object):
                 ))
                 redis_conn.publish(redis_key, payload) #type: ignore 
                 return
-
-            player.explored_floor.setMatrix((player.explored_floor.toInt() | (dungeon.tiles.toInt() & player.vision.toInt())).to_bytes(dungeon_height*dungeon_width, 'big')) 
             payload = msgpack.packb(dict(
                 messageType='UPDATE',
                 data = {
                     "vision": player.vision.rawData,
                     "floor": player.explored_floor.rawData, # type: ignore
-                    "moveObjects": nvwa.dumps(),
+                    "actors": nvwa.dump_by_vision(player.vision),
                     "messages": "",
                 }
             ))
             redis_conn.publish(redis_key, payload) #type: ignore 
-
-        # 销毁对象
-        while len(destroy_list) > 0:
-            obj = destroy_list.pop()
-            nvwa.delete(obj.uid)
 
     def playerDisconnect(self, user):
         logger.info(f'{user} 断开链接')
@@ -164,7 +149,7 @@ def command_controller(gm: GameManager, command_bytes: bytes):
 if __name__ == '__main__':
     gm = GameManager()
 
-    # gm.spawnEnemy()
+    gm.spawnEnemy()
     gm.spawnPlayer('user1')
     print('game server start')
     while True:

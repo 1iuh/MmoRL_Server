@@ -27,17 +27,18 @@ class Move(Action):
         # 如果有门就开门
         if nvwa.has_door(position):
             nvwa.open_door(position)
-            return
-
         # 如果是墙
-        if nvwa.has_wall(position):
+        elif nvwa.has_wall(position):
+            pass
             return
+        else:  
+            # 如果有敌人
+            other = nvwa.get_by_position(position)
+            # 如果有其他对象, 就攻击
+            if other is not None and other.hp >0:
+                target.attack(other)
+                return
+            nvwa.move(target, position)
+        nvwa.update_actor(target)
 
 
-        # 如果有敌人
-        other = nvwa.get_by_position(position)
-        # 如果有其他对象, 就攻击
-        if other is not None and other.hp >0:
-            target.attack(other)
-            return
-        nvwa.move(target, position)
