@@ -98,9 +98,12 @@ class GameManager(object):
         obj.action = Action.factory(instruct, *args) # type:ignore
 
     def nextTurn(self):
+
+        actors = [obj for _, obj in nvwa.uid_dict.items()]
+        
         # 执行
-        for _, obj in nvwa.uid_dict.items():
-            obj.excuteAction()
+        for actor in actors:
+            actor.excuteAction()
 
         # 给客户端推消息
         for username, player in online_player.items():
@@ -118,10 +121,12 @@ class GameManager(object):
                     "vision": player.vision.rawData,
                     "floor": player.explored_floor.rawData, # type: ignore
                     "actors": nvwa.dump_by_vision(player.vision),
-                    "messages": "",
+                    "messages": player.messages,
                 }
             ))
             redis_conn.publish(redis_key, payload) #type: ignore 
+            player.messages = []
+
 
     def playerDisconnect(self, user):
         logger.info(f'{user} 断开链接')

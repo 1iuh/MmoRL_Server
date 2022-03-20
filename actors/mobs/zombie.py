@@ -5,11 +5,14 @@ from consts import ACTOR
 
 
 class Zombie(Actor):
-    max_hp = 10
-    min_attack = 4
-    max_attack = 7
-    name = "吸血鬼"
+    max_hp = 5
+    name = "僵尸"
     tile_code = ACTOR.zombie
+
+    def damaged(self, damage:int):
+        self.hp -= damage
+        if self.hp < 0:
+            self.destroy()
 
     def think(self):
         # self.action = Move(choice(["UP","DOWN","LEFT","RIGHT"]))

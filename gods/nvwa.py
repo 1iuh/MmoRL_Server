@@ -113,3 +113,8 @@ class Nvwa(object):
             actor.explored_floor.setMatrix(
                 (actor.explored_floor.toInt() | (self.dungeon.tiles.toInt() & actor.vision.toInt())
                  ).to_bytes(dungeon_height*dungeon_width, 'big'))
+
+    def destroy(self, actor:Actor):
+        del self.uid_dict[actor.uid]
+        del self.position_dict[self.get_position_key(actor.position)]
+        del actor

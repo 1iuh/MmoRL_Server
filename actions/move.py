@@ -35,7 +35,7 @@ class Move(Action):
             # 如果有敌人
             other = nvwa.get_by_position(position)
             # 如果有其他对象, 就攻击
-            if other is not None and other.hp >0:
+            if other is not None:
                 target.attack(other)
                 return
             nvwa.move(target, position)
