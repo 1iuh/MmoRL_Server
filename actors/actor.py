@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABCMeta
 from utils import Vector2, MyMatrix
 from uuid import uuid4
@@ -24,12 +26,13 @@ class Actor(metaclass=ABCMeta):
     vision: MyMatrix
     vision_range = 5
     hit_bonus = 0
+    is_player = False
     damage_bonus = 0
     dodge_bonus = 0
     def_bonus = 0
-    nvwa: object
+    nvwa: 'Nvwa'
     messages: list[str]
-
+    hurt: list
 
     is_player = False
 
@@ -37,6 +40,7 @@ class Actor(metaclass=ABCMeta):
         self.uid = uuid4().int & (1<<64)-1
         self.hp = self.max_hp
         self.messages = []
+        self.hurt = []
 
     def excuteAction(self):
 
@@ -52,6 +56,12 @@ class Actor(metaclass=ABCMeta):
     def think(self):
         return
 
+    def damaged(self, damage:int):
+        self.hp -= damage
+        self.hurt.append(str(damage))
+        if self.hp < 0:
+            self.destroy()
+
     def attack(self, target):
         # 投一个命中骰子
         hit_dice = self.roll_hit_dice()
@@ -66,6 +76,7 @@ class Actor(metaclass=ABCMeta):
             self.add_message(message)
             message = f'{self.name}攻击你 miss. ({hit_dice} + {hit_bonus} vs {dodge_dice} + {dodge_bonus})'
             target.add_message(message)
+            target.hurt.append('miss')
             return
 
         message = f'你击中{target.name}. ({hit_dice} + {hit_bonus} vs {dodge_dice} + {dodge_bonus})'

@@ -10,6 +10,8 @@ class Player(Actor):
     type_code = 2
     tile_code = ACTOR.PLAYER
     is_player = True
+    hit_bonus = 3
+    damage_bonus = 3
     explored_floor: MyMatrix
 
 
@@ -21,14 +23,8 @@ class Player(Actor):
         self.explored_floor = MyMatrix(map_width, map_length)
         self.explored_floor.fillMatrixWithZero()
 
-    def damaged(self, damage):
-        self.hp -= damage
-        if self.hp < 0:
-            self.endgame()
-
-    def endgame(self):
+    def destroy(self):
         pass
-
 
     @property
     def name(self):

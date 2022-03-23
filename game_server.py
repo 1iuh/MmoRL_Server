@@ -78,9 +78,11 @@ class GameManager(object):
                 mapLength=dungeon_height, # type: ignore
                 playerUID=player.uid,
                 messages=[f"「{user}」 进入了游戏。"],
-                maxHp=player.max_hp,
-                hp=player.hp,
                 username=user,
+                status ={
+                    "maxHp":player.max_hp,
+                    "hp":player.hp
+                },
                 actors = nvwa.dump_by_vision(player.vision)
             )
         ))
@@ -122,6 +124,10 @@ class GameManager(object):
                     "floor": player.explored_floor.rawData, # type: ignore
                     "actors": nvwa.dump_by_vision(player.vision),
                     "messages": player.messages,
+                    "status": {
+                        "maxHp":player.max_hp,
+                        "hp":player.hp
+                    }
                 }
             ))
             redis_conn.publish(redis_key, payload) #type: ignore 

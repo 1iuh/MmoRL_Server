@@ -1,5 +1,4 @@
 from actions.actions import Action
-from gods import Nvwa
 
 
 class Move(Action):
@@ -9,7 +8,7 @@ class Move(Action):
     def __init__(self, direction):
         self.direction = direction
 
-    def excute(self, target, nvwa: Nvwa):
+    def excute(self, target, nvwa):
         if target.hp <= 0:
             return
 
@@ -40,5 +39,3 @@ class Move(Action):
                 return
             nvwa.move(target, position)
         nvwa.update_actor(target)
-
-

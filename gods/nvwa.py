@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from utils import Vector2, ray_casting, MyMatrix
 from actors import Actor, Player
 from dungeon_generator import DungeonGenerator
@@ -57,6 +59,13 @@ class Nvwa(object):
                 })
         return res
 
+    def get_actors_by_vision(self, vision:MyMatrix):
+        res = []
+        for _,v in self.uid_dict.items():
+            if vision[v.position] == 255:
+                res.append(v)
+        return res
+
     def dump_by_vision(self, vision:MyMatrix):
         res = []
         for _,v in self.uid_dict.items():
@@ -67,8 +76,10 @@ class Nvwa(object):
                     "y": v.position.y,
                     "hp": v.hp,
                     "maxHp": v.max_hp,
-                    "tile_code": v.tile_code
+                    "tile_code": v.tile_code,
+                    "hurt": v.hurt
                 })
+                v.hurt = []
         return res
 
 
